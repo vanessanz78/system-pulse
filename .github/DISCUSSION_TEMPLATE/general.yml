@@ -1,0 +1,27 @@
+title: "[Discussion]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this discussion form for project questions, decision proposals, and planning topics that are not ready to become issues.
+  - type: textarea
+    id: topic
+    attributes:
+      label: Topic
+      description: What should be discussed?
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Add relevant repository files, decisions, constraints, or links.
+    validations:
+      required: false
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: What decision, clarification, or next step would make this discussion useful?
+    validations:
+      required: false

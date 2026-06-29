@@ -1,0 +1,56 @@
+# Operating system files
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+desktop.ini
+
+# Editor and IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Dependencies and package manager caches
+node_modules/
+.pnpm-store/
+.yarn/cache/
+
+# Build outputs and generated artifacts
+dist/
+build/
+out/
+coverage/
+.cache/
+.vite/
+.next/
+.turbo/
+
+# Native and compiled outputs
+target/
+bin/
+obj/
+*.exe
+*.dll
+*.dylib
+*.so
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/

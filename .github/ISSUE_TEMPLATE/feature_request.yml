@@ -1,0 +1,36 @@
+name: Feature request
+description: Propose a capability for review before implementation.
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Feature requests are inputs for product and architecture review. They are not implementation approval.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or opportunity
+      description: What need, risk, or opportunity does this address?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed direction
+      description: Describe the idea without assuming implementation details.
+    validations:
+      required: true
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals
+      description: What should this not include?
+    validations:
+      required: false
+  - type: textarea
+    id: open_questions
+    attributes:
+      label: Open questions
+      description: What decisions are still needed before implementation?
+    validations:
+      required: false
