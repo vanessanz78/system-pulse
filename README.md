@@ -2,7 +2,7 @@
 
 System Pulse is a cross-platform desktop software project in founding-engineering setup.
 
-The repository is the long-term home for a production-quality application that will eventually support macOS, Windows, and Linux from a shared architecture. The founding product, experience, trust, architecture, and release materials have now been read and summarized into durable GitHub notes. Production application code has not started.
+The repository is the long-term home for a production-quality application that will eventually support macOS, Windows, and Linux from a shared architecture. Milestone 2 introduces the first usable macOS Tauri app with real local system data.
 
 ## Vision
 
@@ -22,9 +22,9 @@ System Pulse should answer three questions quickly:
 
 ## Current Status
 
-Founding-document read-through complete.
+Milestone 2 in progress: first usable macOS app.
 
-No application code, UI implementation, framework scaffold, build output, or product feature has been created yet.
+The app now includes a Tauri/Rust backend, TypeScript frontend, local macOS collectors, and a PulseCore module that turns collector data into the Today screen output.
 
 Durable handoff notes:
 
@@ -54,7 +54,7 @@ system-pulse/
 | `design/` | Future visual references and design-system source files. |
 | `assets/` | Future shared static assets. |
 | `website/` | Future public website or documentation website workspace. |
-| `app/` | Future cross-platform desktop application workspace. |
+| `app/desktop/` | Tauri desktop app for the first macOS milestone. |
 | `packages/` | Future shared libraries, domain packages, platform adapters, or tooling packages. |
 | `.github/` | GitHub community standards, issue templates, discussion templates, and pull request templates. |
 
@@ -69,6 +69,23 @@ The founding source documents specify:
 - Platform-specific collectors.
 - Local-first PulseCore.
 - macOS and Windows first, Linux later once the core architecture is stable.
+
+## Run The App On macOS
+
+Prerequisites:
+
+- Rust toolchain.
+- Node.js and pnpm.
+- macOS development tools required by Tauri.
+
+Install dependencies and launch the app:
+
+```bash
+pnpm install
+pnpm dev
+```
+
+The first milestone app reads local macOS memory, storage, and top application memory usage, sends those snapshots to PulseCore, and renders the Today screen from PulseCore output.
 
 ## Development Philosophy
 
@@ -115,4 +132,4 @@ Version One is focused on Heartbeat and Understanding: The Heart, Today, System 
 
 ## License
 
-License terms have not been selected yet. See `LICENSE`.
+Proprietary / all rights reserved for now. See `LICENSE`.

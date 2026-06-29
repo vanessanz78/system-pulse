@@ -1,0 +1,11 @@
+{
+  "name": "system-pulse",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.7.0",
+  "scripts": {
+    "dev": "pnpm --dir app/desktop tauri dev",
+    "build": "pnpm --dir app/desktop tauri build",
+    "check": "pnpm --dir app/desktop check"
+  }
+}
