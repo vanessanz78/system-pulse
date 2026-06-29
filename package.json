@@ -4,8 +4,8 @@
   "private": true,
   "packageManager": "pnpm@11.7.0",
   "scripts": {
-    "dev": "pnpm --dir app/desktop tauri dev",
-    "build": "pnpm --dir app/desktop tauri build",
-    "check": "pnpm --dir app/desktop check"
+    "dev": "pnpm --filter @system-pulse/desktop dev",
+    "build": "pnpm --filter @system-pulse/desktop build",
+    "check": "pnpm --filter @system-pulse/desktop check"
   }
 }
