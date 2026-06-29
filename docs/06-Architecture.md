@@ -11,6 +11,22 @@
 
 Architecture decisions for System Pulse. This file starts as a compact working architecture note; the richer source documents should remain the deeper product reference.
 
+## PulseCore Three-Layer Model
+
+PulseCore uses the three-layer model captured in [The Three Layers of PulseCore](22-PulseCore-Layers.md):
+
+1. Observation: what is happening?
+2. Reasoning: why is it happening?
+3. Experience: how does it feel?
+
+This model is now a boundary rule for architecture decisions:
+
+- Collectors belong to Observation. They gather local system signals and make no judgements.
+- PulseCore owns Reasoning. It interprets context, relationships, patterns, confidence and priority.
+- The product experience expresses the Experience layer. It should protect the user's focus, momentum and perceived performance.
+
+The architecture should not optimise technical measurements at the cost of the user's experience.
+
 ## Sections To Complete
 
 - Runtime architecture: Tauri shell, Rust backend, TypeScript frontend.
@@ -53,4 +69,5 @@ Each learning should describe the real-world event, the product learning, the Pu
 
 ## Decision Log
 
+- 2026-06-30: Captured the PulseCore three-layer model: Observation, Reasoning and Experience.
 - 2026-06-30: Real-World Learning 001 added Browser Health, Renderer Health and WindowServer Health as PulseCore reasoning domains.
