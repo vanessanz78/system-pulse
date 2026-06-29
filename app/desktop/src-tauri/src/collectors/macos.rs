@@ -1,4 +1,7 @@
-use crate::models::{ApplicationSnapshot, MemorySnapshot, StorageSnapshot, SystemSnapshot};
+use crate::models::{
+    ApplicationSnapshot, BrowserHealthSnapshot, BrowserSnapshot, MemorySnapshot,
+    RendererHealthSnapshot, StorageSnapshot, SystemSnapshot, WindowServerSnapshot,
+};
 use std::collections::HashMap;
 use std::path::Path;
 use std::process::Command;
@@ -7,7 +10,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub fn collect_system_snapshot() -> Result<SystemSnapshot, String> {
     let memory = collect_memory()?;
     let storage = collect_storage()?;
-    let applications = collect_top_applications(memory.total_bytes)?;
+    let processes = collect_processes()?;
+    let applications = collect_top_applications(memory.total_bytes, &processes);
+    let browser = collect_browser_health(&processes);
+    let renderers = collect_renderer_health(&browser);
+    let window_server = collect_window_server(&processes);
 
     Ok(SystemSnapshot {
         collected_at: collected_at()?,
@@ -15,7 +22,18 @@ pub fn collect_system_snapshot() -> Result<SystemSnapshot, String> {
         memory,
         storage,
         applications,
+        browser,
+        renderers,
+        window_server,
     })
+}
+
+#[derive(Debug)]
+struct ProcessInfo {
+    rss_bytes: u64,
+    cpu_percent: f32,
+    elapsed_seconds: Option<u64>,
+    command_name: String,
 }
 
 fn collect_memory() -> Result<MemorySnapshot, String> {
@@ -69,9 +87,9 @@ fn collect_storage() -> Result<StorageSnapshot, String> {
     })
 }
 
-fn collect_top_applications(total_memory_bytes: u64) -> Result<Vec<ApplicationSnapshot>, String> {
-    let output = run_command("ps", &["-axo", "pid=,rss=,comm="])?;
-    let mut grouped: HashMap<String, u64> = HashMap::new();
+fn collect_processes() -> Result<Vec<ProcessInfo>, String> {
+    let output = run_command("ps", &["-axo", "pid=,rss=,pcpu=,etime=,comm="])?;
+    let mut processes = Vec::new();
 
     for line in output.lines() {
         let mut parts = line.split_whitespace();
@@ -79,16 +97,42 @@ fn collect_top_applications(total_memory_bytes: u64) -> Result<Vec<ApplicationSn
         let Some(rss_kib) = parts.next() else {
             continue;
         };
+        let Some(cpu_percent) = parts.next() else {
+            continue;
+        };
+        let Some(elapsed) = parts.next() else {
+            continue;
+        };
         let command_name = parts.collect::<Vec<_>>().join(" ");
         if command_name.is_empty() {
             continue;
         }
-        let memory_bytes = parse_kib(rss_kib, "application memory").unwrap_or(0);
-        if memory_bytes == 0 {
+
+        let rss_bytes = parse_kib(rss_kib, "process memory").unwrap_or(0);
+        let cpu_percent = cpu_percent.parse::<f32>().unwrap_or(0.0);
+        processes.push(ProcessInfo {
+            rss_bytes,
+            cpu_percent,
+            elapsed_seconds: parse_elapsed_seconds(elapsed),
+            command_name,
+        });
+    }
+
+    Ok(processes)
+}
+
+fn collect_top_applications(
+    total_memory_bytes: u64,
+    processes: &[ProcessInfo],
+) -> Vec<ApplicationSnapshot> {
+    let mut grouped: HashMap<String, u64> = HashMap::new();
+
+    for process in processes {
+        if process.rss_bytes == 0 {
             continue;
         }
-        let name = normalize_application_name(&command_name);
-        *grouped.entry(name).or_insert(0) += memory_bytes;
+        let name = normalize_application_name(&process.command_name);
+        *grouped.entry(name).or_insert(0) += process.rss_bytes;
     }
 
     let mut applications = grouped
@@ -101,7 +145,106 @@ fn collect_top_applications(total_memory_bytes: u64) -> Result<Vec<ApplicationSn
 
     applications.sort_by(|left, right| right.memory_bytes.cmp(&left.memory_bytes));
     applications.truncate(6);
-    Ok(applications)
+    applications
+}
+
+#[derive(Default)]
+struct BrowserAccumulator {
+    memory_bytes: u64,
+    process_count: u32,
+    renderer_count: u32,
+    renderer_memory_bytes: u64,
+    largest_renderer_bytes: u64,
+    uptime_seconds: Option<u64>,
+}
+
+fn collect_browser_health(processes: &[ProcessInfo]) -> BrowserHealthSnapshot {
+    let mut browsers: HashMap<String, BrowserAccumulator> = HashMap::new();
+
+    for process in processes {
+        let Some(browser_name) = browser_name(&process.command_name) else {
+            continue;
+        };
+        let accumulator = browsers.entry(browser_name).or_default();
+        accumulator.memory_bytes = accumulator.memory_bytes.saturating_add(process.rss_bytes);
+        accumulator.process_count = accumulator.process_count.saturating_add(1);
+        accumulator.uptime_seconds =
+            max_optional(accumulator.uptime_seconds, process.elapsed_seconds);
+
+        if renderer_browser_name(&process.command_name).is_some() {
+            accumulator.renderer_count = accumulator.renderer_count.saturating_add(1);
+            accumulator.renderer_memory_bytes = accumulator
+                .renderer_memory_bytes
+                .saturating_add(process.rss_bytes);
+            accumulator.largest_renderer_bytes =
+                accumulator.largest_renderer_bytes.max(process.rss_bytes);
+        }
+    }
+
+    let mut browsers = browsers
+        .into_iter()
+        .map(|(name, accumulator)| BrowserSnapshot {
+            name,
+            memory_bytes: accumulator.memory_bytes,
+            process_count: accumulator.process_count,
+            renderer_count: accumulator.renderer_count,
+            renderer_memory_bytes: accumulator.renderer_memory_bytes,
+            largest_renderer_bytes: accumulator.largest_renderer_bytes,
+            uptime_seconds: accumulator.uptime_seconds,
+        })
+        .collect::<Vec<_>>();
+
+    browsers.sort_by(|left, right| right.memory_bytes.cmp(&left.memory_bytes));
+    BrowserHealthSnapshot { browsers }
+}
+
+fn collect_renderer_health(browser_health: &BrowserHealthSnapshot) -> RendererHealthSnapshot {
+    let total_count = browser_health
+        .browsers
+        .iter()
+        .map(|browser| browser.renderer_count)
+        .sum();
+    let total_memory_bytes = browser_health
+        .browsers
+        .iter()
+        .map(|browser| browser.renderer_memory_bytes)
+        .sum();
+    let primary = browser_health
+        .browsers
+        .iter()
+        .max_by(|left, right| {
+            left.renderer_count
+                .cmp(&right.renderer_count)
+                .then(left.memory_bytes.cmp(&right.memory_bytes))
+        });
+
+    RendererHealthSnapshot {
+        total_count,
+        total_memory_bytes,
+        largest_renderer_name: primary.map(|browser| browser.name.clone()),
+        largest_renderer_memory_bytes: primary
+            .map(|browser| browser.largest_renderer_bytes)
+            .unwrap_or(0),
+        primary_browser: primary.map(|browser| browser.name.clone()),
+        primary_browser_renderer_count: primary
+            .map(|browser| browser.renderer_count)
+            .unwrap_or(0),
+    }
+}
+
+fn collect_window_server(processes: &[ProcessInfo]) -> Option<WindowServerSnapshot> {
+    processes.iter().find_map(|process| {
+        let name = process.command_name.to_lowercase();
+        if name.ends_with("windowserver") || name.contains("/windowserver") {
+            Some(WindowServerSnapshot {
+                memory_bytes: process.rss_bytes,
+                cpu_percent: process.cpu_percent,
+                uptime_seconds: process.elapsed_seconds,
+            })
+        } else {
+            None
+        }
+    })
 }
 
 fn normalize_application_name(command_name: &str) -> String {
@@ -130,6 +273,9 @@ fn normalize_application_name(command_name: &str) -> String {
     if lower.contains("safari") {
         return "Safari".to_string();
     }
+    if lower.ends_with("windowserver") || lower.contains("/windowserver") {
+        return "WindowServer".to_string();
+    }
 
     Path::new(command_name)
         .file_name()
@@ -138,6 +284,49 @@ fn normalize_application_name(command_name: &str) -> String {
         .trim()
         .trim_end_matches(".app")
         .to_string()
+}
+
+fn browser_name(command_name: &str) -> Option<String> {
+    let lower = command_name.to_lowercase();
+    if lower.contains("google chrome") {
+        return Some("Google Chrome".to_string());
+    }
+    if lower.contains("microsoft edge") {
+        return Some("Microsoft Edge".to_string());
+    }
+    if lower.contains("firefox") {
+        return Some("Firefox".to_string());
+    }
+    if lower.contains("safari") || lower.contains("webkit.webcontent") {
+        return Some("Safari".to_string());
+    }
+    None
+}
+
+fn renderer_browser_name(command_name: &str) -> Option<String> {
+    let lower = command_name.to_lowercase();
+    if lower.contains("google chrome helper") && lower.contains("renderer") {
+        return Some("Google Chrome".to_string());
+    }
+    if lower.contains("microsoft edge helper") && lower.contains("renderer") {
+        return Some("Microsoft Edge".to_string());
+    }
+    if lower.contains("webkit.webcontent") || lower.contains("safari web content") {
+        return Some("Safari".to_string());
+    }
+    if lower.contains("firefox") && (lower.contains("web content") || lower.contains("plugin-container")) {
+        return Some("Firefox".to_string());
+    }
+    None
+}
+
+fn max_optional(left: Option<u64>, right: Option<u64>) -> Option<u64> {
+    match (left, right) {
+        (Some(left), Some(right)) => Some(left.max(right)),
+        (Some(left), None) => Some(left),
+        (None, Some(right)) => Some(right),
+        (None, None) => None,
+    }
 }
 
 fn run_command(command: &str, args: &[&str]) -> Result<String, String> {
@@ -180,6 +369,29 @@ fn parse_kib(value: &str, label: &str) -> Result<u64, String> {
         .parse::<u64>()
         .map(|kib| kib.saturating_mul(1024))
         .map_err(|error| format!("Could not parse {label}: {error}"))
+}
+
+fn parse_elapsed_seconds(value: &str) -> Option<u64> {
+    let (days, rest) = if let Some((days, rest)) = value.split_once('-') {
+        (days.parse::<u64>().ok()?, rest)
+    } else {
+        (0, value)
+    };
+    let parts = rest
+        .split(':')
+        .map(|part| part.parse::<u64>().ok())
+        .collect::<Option<Vec<_>>>()?;
+
+    let seconds = match parts.as_slice() {
+        [minutes, seconds] => minutes.saturating_mul(60).saturating_add(*seconds),
+        [hours, minutes, seconds] => hours
+            .saturating_mul(3_600)
+            .saturating_add(minutes.saturating_mul(60))
+            .saturating_add(*seconds),
+        _ => return None,
+    };
+
+    Some(days.saturating_mul(86_400).saturating_add(seconds))
 }
 
 fn collected_at() -> Result<String, String> {

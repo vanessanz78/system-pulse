@@ -28,6 +28,9 @@ type TodayPulse = {
   expectedImprovement: string;
   memoryHealth: DomainHealth;
   storageHealth: DomainHealth;
+  browserHealth?: DomainHealth;
+  rendererHealth?: DomainHealth;
+  windowServerHealth?: DomainHealth;
   topApplications: ApplicationImpact[];
 };
 

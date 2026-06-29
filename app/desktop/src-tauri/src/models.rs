@@ -7,6 +7,9 @@ pub struct SystemSnapshot {
     pub memory: MemorySnapshot,
     pub storage: StorageSnapshot,
     pub applications: Vec<ApplicationSnapshot>,
+    pub browser: BrowserHealthSnapshot,
+    pub renderers: RendererHealthSnapshot,
+    pub window_server: Option<WindowServerSnapshot>,
 }
 
 #[derive(Debug, Clone)]
@@ -31,6 +34,39 @@ pub struct ApplicationSnapshot {
     pub memory_bytes: u64,
 }
 
+#[derive(Debug, Clone)]
+pub struct BrowserHealthSnapshot {
+    pub browsers: Vec<BrowserSnapshot>,
+}
+
+#[derive(Debug, Clone)]
+pub struct BrowserSnapshot {
+    pub name: String,
+    pub memory_bytes: u64,
+    pub process_count: u32,
+    pub renderer_count: u32,
+    pub renderer_memory_bytes: u64,
+    pub largest_renderer_bytes: u64,
+    pub uptime_seconds: Option<u64>,
+}
+
+#[derive(Debug, Clone)]
+pub struct RendererHealthSnapshot {
+    pub total_count: u32,
+    pub total_memory_bytes: u64,
+    pub largest_renderer_name: Option<String>,
+    pub largest_renderer_memory_bytes: u64,
+    pub primary_browser: Option<String>,
+    pub primary_browser_renderer_count: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct WindowServerSnapshot {
+    pub memory_bytes: u64,
+    pub cpu_percent: f32,
+    pub uptime_seconds: Option<u64>,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TodayPulse {
@@ -44,6 +80,9 @@ pub struct TodayPulse {
     pub expected_improvement: String,
     pub memory_health: DomainHealth,
     pub storage_health: DomainHealth,
+    pub browser_health: DomainHealth,
+    pub renderer_health: DomainHealth,
+    pub window_server_health: Option<DomainHealth>,
     pub top_applications: Vec<ApplicationImpact>,
 }
 
