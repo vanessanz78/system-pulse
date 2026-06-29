@@ -31,6 +31,7 @@ Durable handoff notes:
 - [Founding Engineering Handover](docs/00-Founding-Engineering-Handover.md)
 - [Source Document Reading Notes](docs/19-Source-Document-Reading-Notes.md)
 - [Founding Engineer Readiness Note](docs/18-Founding-Engineer-Readiness.md)
+- [The Three Layers of PulseCore](docs/22-PulseCore-Layers.md)
 
 ## Repository Structure
 
@@ -70,6 +71,8 @@ The founding source documents specify:
 - Local-first PulseCore.
 - macOS and Windows first, Linux later once the core architecture is stable.
 
+PulseCore follows a three-layer model: Observation, Reasoning, and Experience. Collectors observe, PulseCore reasons, and the product experience should protect the user's focus and perceived performance.
+
 ## Run The App On macOS
 
 Prerequisites:
@@ -102,6 +105,7 @@ Core principles:
 - No hidden optimisation.
 - No fear-based messaging.
 - Low resource use is a product requirement.
+- Experience always wins.
 
 ## Contribution Philosophy
 
