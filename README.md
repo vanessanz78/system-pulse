@@ -1,28 +1,36 @@
 # System Pulse
 
-System Pulse is a cross-platform desktop software project in foundation setup.
+System Pulse is a cross-platform desktop software project in founding-engineering setup.
 
-The repository is being prepared as the long-term home for a production-quality application that can eventually support macOS, Windows, and Linux from a shared architecture. No application code, user interface, or product features have been implemented yet.
+The repository is the long-term home for a production-quality application that will eventually support macOS, Windows, and Linux from a shared architecture. The founding product, experience, trust, architecture, and release materials have now been read and summarized into durable GitHub notes. Production application code has not started.
 
 ## Vision
 
-Create a maintainable, cross-platform desktop application foundation that can support careful product discovery, high-performance implementation, and predictable release operations over time.
+Keep your computer performing like the day you bought it.
+
+System Pulse exists to become a trusted computer health companion: calm, local-first, lightweight, and understandable without requiring users to become computer experts.
 
 ## Mission
 
-Build System Pulse with engineering discipline before feature work begins:
+Help knowledge workers confidently maintain a fast, healthy computer without needing technical expertise.
 
-- document decisions before they become implementation constraints;
-- keep platform architecture explicit;
-- prioritize performance, low memory use, and maintainability;
-- separate product definition, design language, app code, shared packages, website work, and operational standards;
-- make repository state recoverable from GitHub rather than local session history.
+System Pulse should answer three questions quickly:
+
+1. Is my computer healthy?
+2. Why?
+3. What should I do?
 
 ## Current Status
 
-Foundation setup only.
+Founding-document read-through complete.
 
-This repository currently contains documentation placeholders, project standards, and an architecture recommendation. Application implementation has not started.
+No application code, UI implementation, framework scaffold, build output, or product feature has been created yet.
+
+Durable handoff notes:
+
+- [Founding Engineering Handover](docs/00-Founding-Engineering-Handover.md)
+- [Source Document Reading Notes](docs/19-Source-Document-Reading-Notes.md)
+- [Founding Engineer Readiness Note](docs/18-Founding-Engineer-Readiness.md)
 
 ## Repository Structure
 
@@ -42,54 +50,68 @@ system-pulse/
 
 | Path | Purpose |
 | --- | --- |
-| `docs/` | Long-form product, experience, architecture, roadmap, brand, and marketing documents. |
-| `design/` | Future design-system source files, research artifacts, and working design materials. |
+| `docs/` | Founding source documents, read-through notes, implementation guardrails, and milestone notes. |
+| `design/` | Future visual references and design-system source files. |
 | `assets/` | Future shared static assets. |
 | `website/` | Future public website or documentation website workspace. |
 | `app/` | Future cross-platform desktop application workspace. |
 | `packages/` | Future shared libraries, domain packages, platform adapters, or tooling packages. |
 | `.github/` | GitHub community standards, issue templates, discussion templates, and pull request templates. |
 
+## Architecture Direction
+
+The founding source documents specify:
+
+- Tauri desktop shell.
+- Rust core.
+- TypeScript frontend.
+- Local SQLite database.
+- Platform-specific collectors.
+- Local-first PulseCore.
+- macOS and Windows first, Linux later once the core architecture is stable.
+
 ## Development Philosophy
 
 System Pulse should be built as a durable software product, not a prototype.
 
-Core engineering principles:
+Core principles:
 
-- start with explicit documentation and decision records;
-- preserve a small, understandable repository shape;
-- avoid platform-specific assumptions until architecture decisions are approved;
-- prefer automated, repeatable release paths over manual local builds;
-- keep runtime memory and disk footprint visible as product constraints;
-- design shared packages around stable boundaries rather than convenience imports;
-- treat macOS, Windows, and Linux as first-class targets once implementation begins.
+- Trust before convenience.
+- Clarity before technical display.
+- PulseCore interprets; UI displays.
+- Collectors observe; they do not recommend.
+- Local-first by default.
+- One recommendation at a time.
+- No hidden optimisation.
+- No fear-based messaging.
+- Low resource use is a product requirement.
 
 ## Contribution Philosophy
 
-Contributions should be small, reviewable, and tied to approved product or architecture direction.
+Contributions should be small, reviewable, and tied to the founding documents.
 
 Before implementation begins, contributions should focus on:
 
-- clarifying project documents;
+- clarifying source documents;
 - recording open questions;
 - proposing architecture decisions;
 - improving repository standards;
 - identifying risks, assumptions, and validation steps.
 
-Feature work should wait until the product and architecture documents are approved.
+Feature work should follow the approved Version One scope summarized in [Founding Engineer Readiness Note](docs/18-Founding-Engineer-Readiness.md).
 
 ## Roadmap Summary
 
-1. Prepare repository foundation.
-2. Populate product and experience documents.
-3. Approve architecture direction.
-4. Define design system and brand foundations.
-5. Create implementation plan for the first application milestone.
-6. Begin application work only after approval.
+1. Foundation.
+2. Heartbeat.
+3. Understanding.
+4. Learning.
+5. Protection.
+6. Workspace Intelligence.
+7. Team Pulse.
+8. Pulse Platform.
 
-## Architecture Recommendation
-
-See `docs/11-Architecture-Recommendation.md` for the initial recommended stack and trade-off analysis.
+Version One is focused on Heartbeat and Understanding: The Heart, Today, System Score, basic PulseCore, one recommendation, local history, weekly review, and clear explanations.
 
 ## License
 
