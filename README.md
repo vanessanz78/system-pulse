@@ -2,7 +2,7 @@
 
 System Pulse is a cross-platform desktop software project in founding-engineering setup.
 
-The repository is the long-term home for a production-quality application that will eventually support macOS, Windows, and Linux from a shared architecture. Milestone 2 introduces the first usable macOS Tauri app with real local system data.
+The repository is the long-term home for a production-quality application that will eventually support macOS, Windows, and Linux from a shared architecture. The current macOS UAT app is a Tauri desktop build with real local system data.
 
 ## Vision
 
@@ -22,9 +22,9 @@ System Pulse should answer three questions quickly:
 
 ## Current Status
 
-Milestone 2 in progress: first usable macOS app.
+macOS UAT in progress: menu bar presence, quick check-in, Today, local collectors, and first user-approved care actions.
 
-The app now includes a Tauri/Rust backend, TypeScript frontend, local macOS collectors, and a PulseCore module that turns collector data into the Today screen output.
+The app now includes a Tauri/Rust backend, TypeScript frontend, local macOS collectors, and a PulseCore module that turns collector data into Today, Quick Check-in, and care-opportunity output.
 
 Durable handoff notes:
 
@@ -33,6 +33,7 @@ Durable handoff notes:
 - [Founding Engineer Readiness Note](docs/18-Founding-Engineer-Readiness.md)
 - [The Three Layers of PulseCore](docs/22-PulseCore-Layers.md)
 - [Desktop Build And Download](docs/23-Desktop-Build-And-Download.md)
+- [Decision Architecture](docs/33-Decision-Architecture.md)
 
 ## Repository Structure
 
@@ -72,7 +73,7 @@ The founding source documents specify:
 - Local-first PulseCore.
 - macOS and Windows first, Linux later once the core architecture is stable.
 
-PulseCore follows a three-layer model: Observation, Reasoning, and Experience. Collectors observe, PulseCore reasons, and the product experience should protect the user's focus and perceived performance.
+PulseCore follows a three-layer model: Observation, Reasoning, and Experience. Collectors observe, PulseCore reasons, and the product experience should protect the user's focus and momentum.
 
 Desktop installers are built through GitHub Actions, not Replit. Replit is reserved for the future sales website and lightweight repository checks.
 
