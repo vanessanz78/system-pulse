@@ -40,6 +40,7 @@ coverage/
 .vite/
 .next/
 .turbo/
+app/desktop/src-tauri/icons/
 
 # Native and compiled outputs
 target/
