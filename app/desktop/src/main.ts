@@ -19,6 +19,12 @@ type ApplicationImpact = {
   detail: string;
   careLabel: string;
   careDetail: string;
+  careEstimatedImprovement: string;
+  actionKind: string;
+  actionTarget: string;
+  actionLabel: string;
+  showOpportunity: boolean;
+  protectedWork: boolean;
 };
 
 type TodayPulse = {
@@ -49,6 +55,17 @@ const appRoot = app;
 let currentPulse: TodayPulse | null = null;
 let isRefreshing = false;
 let currentView: ViewMode = "quick";
+let careMessage = "";
+
+type CareMuteState = Record<
+  string,
+  {
+    remindUntil?: number;
+    ignoredOn?: string;
+  }
+>;
+
+const CARE_STATE_KEY = "system-pulse-care-state-v1";
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => {
@@ -67,6 +84,35 @@ function escapeHtml(value: string): string {
         return character;
     }
   });
+}
+
+function todayKey(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function actionId(application: ApplicationImpact): string {
+  return `${application.actionKind}:${application.actionTarget || application.name}`;
+}
+
+function readCareState(): CareMuteState {
+  try {
+    const raw = localStorage.getItem(CARE_STATE_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw) as CareMuteState;
+  } catch {
+    return {};
+  }
+}
+
+function writeCareState(state: CareMuteState): void {
+  localStorage.setItem(CARE_STATE_KEY, JSON.stringify(state));
+}
+
+function shouldHideOpportunity(application: ApplicationImpact): boolean {
+  const state = readCareState()[actionId(application)];
+  if (!state) return false;
+  if (state.ignoredOn === todayKey()) return true;
+  return Boolean(state.remindUntil && state.remindUntil > Date.now());
 }
 
 function canKeepWorking(state: HealthState): string {
@@ -131,25 +177,144 @@ function quickSignal(label: string, domain: DomainHealth): string {
   `;
 }
 
-function nextCareCard(pulse: TodayPulse): string {
-  const application = pulse.topApplications[0];
-  if (pulse.healthState === "healthy" || !application) {
-    return "";
-  }
+function careMessageHtml(): string {
+  if (!careMessage) return "";
+  return `<p class="care-message" role="status">${escapeHtml(careMessage)}</p>`;
+}
+
+function visibleApplicationOpportunities(pulse: TodayPulse): ApplicationImpact[] {
+  return pulse.topApplications
+    .filter((application) => application.showOpportunity)
+    .filter((application) => application.actionKind !== "none")
+    .filter((application) => !shouldHideOpportunity(application))
+    .slice(0, 3);
+}
+
+function protectedWorkNotes(pulse: TodayPulse): ApplicationImpact[] {
+  return pulse.topApplications
+    .filter((application) => application.protectedWork)
+    .slice(0, 2);
+}
+
+function opportunityButtons(application: ApplicationImpact): string {
+  return `
+    <div class="care-actions">
+      <button
+        class="primary-care-button"
+        type="button"
+        data-care-action="${escapeHtml(actionId(application))}"
+      >
+        ${escapeHtml(application.actionLabel || "Do this now")}
+      </button>
+      <button
+        class="secondary-care-button"
+        type="button"
+        data-care-remind="${escapeHtml(actionId(application))}"
+      >
+        Remind me in 30 minutes
+      </button>
+      <button
+        class="quiet-care-button"
+        type="button"
+        data-care-ignore="${escapeHtml(actionId(application))}"
+      >
+        Ignore today
+      </button>
+    </div>
+  `;
+}
+
+function opportunityCard(application: ApplicationImpact): string {
+  return `
+    <article class="opportunity-card" data-application="${escapeHtml(actionId(application))}">
+      <div class="opportunity-main">
+        <p class="eyebrow">Recommended care</p>
+        <h3>${escapeHtml(application.name)}</h3>
+        <strong>${escapeHtml(application.careLabel)}</strong>
+        <p>${escapeHtml(application.careDetail)}</p>
+      </div>
+      <div class="opportunity-decision">
+        <div class="time-gain compact">
+          <span>Estimated benefit</span>
+          <strong>${escapeHtml(application.careEstimatedImprovement)}</strong>
+        </div>
+        ${opportunityButtons(application)}
+      </div>
+    </article>
+  `;
+}
+
+function protectedWorkCard(application: ApplicationImpact): string {
+  return `
+    <article class="opportunity-card protected-work">
+      <div class="opportunity-main">
+        <p class="eyebrow">Protected work</p>
+        <h3>${escapeHtml(application.name)}</h3>
+        <strong>${escapeHtml(application.careLabel)}</strong>
+        <p>${escapeHtml(application.careDetail)}</p>
+      </div>
+      <div class="opportunity-decision quiet-decision">
+        <span>No button shown</span>
+        <strong>Active work comes first.</strong>
+      </div>
+    </article>
+  `;
+}
+
+function storageOpportunity(pulse: TodayPulse): string {
+  if (pulse.storageHealth.label === "OK") return "";
+  return `
+    <article class="opportunity-card">
+      <div class="opportunity-main">
+        <p class="eyebrow">Storage</p>
+        <h3>Review storage when you have a quiet moment.</h3>
+        <strong>${escapeHtml(pulse.storageHealth.headline)}</strong>
+        <p>${escapeHtml(pulse.storageHealth.detail)}</p>
+      </div>
+      <div class="opportunity-decision">
+        <div class="time-gain compact">
+          <span>Estimated benefit</span>
+          <strong>+15 minutes</strong>
+        </div>
+        <div class="care-actions">
+          <button
+            class="primary-care-button"
+            type="button"
+            data-domain-action="openStorageSettings"
+          >
+            Open Storage Settings
+          </button>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function todaysOpportunities(pulse: TodayPulse): string {
+  const applications = visibleApplicationOpportunities(pulse)
+    .map(opportunityCard)
+    .join("");
+  const protectedNotes = protectedWorkNotes(pulse)
+    .map(protectedWorkCard)
+    .join("");
+  const storage = storageOpportunity(pulse);
+  const hasOpportunities = Boolean(applications || storage);
 
   return `
-    <section class="card care-card">
-      <p class="eyebrow">Lowest disruption</p>
-      <h2>${escapeHtml(application.careLabel)}</h2>
-      <p>${escapeHtml(application.careDetail)}</p>
-      <div class="time-gain">
-        <span>Estimated additional uninterrupted work</span>
-        <strong>${escapeHtml(pulse.estimatedAdditionalWorkLabel)}</strong>
+    <section class="opportunities-card">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Today's Opportunities</p>
+          <h2>${hasOpportunities ? "Lowest-disruption care." : "No useful action right now."}</h2>
+        </div>
+        <span>${hasOpportunities ? "You stay in control" : "Keep working"}</span>
       </div>
-      <details class="quiet-details">
-        <summary>Why this app?</summary>
-        <p>${escapeHtml(application.impactLabel)}</p>
-      </details>
+      ${careMessageHtml()}
+      ${
+        hasOpportunities
+          ? `<div class="opportunity-list">${applications}${storage}${protectedNotes}</div>`
+          : `<p class="reassurance-copy">System Pulse is staying quiet because nothing would meaningfully protect your momentum right now.</p>${protectedNotes}`
+      }
     </section>
   `;
 }
@@ -179,6 +344,31 @@ function localDetails(pulse: TodayPulse): string {
       <summary>Show local signals</summary>
       <ul>${details}</ul>
     </details>
+  `;
+}
+
+function decisionLabel(domain: DomainHealth): string {
+  if (domain.label === "OK" || domain.label.toLowerCase() === "healthy") {
+    return "No action needed today";
+  }
+  if (domain.label === "Care") return "Care soon";
+  return "Best reviewed at your next break";
+}
+
+function decisionCard(label: string, domain: DomainHealth): string {
+  return `
+    <section class="card decision-card">
+      <div class="card-heading">
+        <span>${escapeHtml(label)}</span>
+        <b>${escapeHtml(decisionLabel(domain))}</b>
+      </div>
+      <h3>${escapeHtml(domain.headline)}</h3>
+      <p>${escapeHtml(domain.detail)}</p>
+      <details class="quiet-details">
+        <summary>Details</summary>
+        <p>${escapeHtml(domain.value)}</p>
+      </details>
+    </section>
   `;
 }
 
@@ -252,7 +442,12 @@ function renderQuickCheckin(pulse: TodayPulse, refreshing = false): void {
 
 function renderToday(pulse: TodayPulse, refreshing = false): void {
   const refreshLabel = refreshing ? "Refreshing..." : "Refresh";
-  const careCard = nextCareCard(pulse);
+  const domainCards = [
+    decisionCard("Applications", pulse.applicationHealth),
+    decisionCard("Browser", pulse.browserHealth ?? pulse.applicationHealth),
+    decisionCard("Memory", pulse.memoryHealth),
+    decisionCard("Storage", pulse.storageHealth),
+  ].join("");
 
   appRoot.innerHTML = `
     <div class="shell today-shell" data-state="${pulse.healthState}">
@@ -263,8 +458,8 @@ function renderToday(pulse: TodayPulse, refreshing = false): void {
         </div>
         <div>
           <p class="eyebrow">Today</p>
-          <h1>${USER_NAME}'s next decision</h1>
-          <p class="topbar-subtitle">Why, and what to do next.</p>
+          <h1>${USER_NAME}'s Today</h1>
+          <p class="topbar-subtitle">A control panel for protecting momentum.</p>
         </div>
         <div class="topbar-actions">
           <span class="platform">${pulse.platform}</span>
@@ -284,30 +479,25 @@ function renderToday(pulse: TodayPulse, refreshing = false): void {
           <p>${comfortLine(pulse.healthState)}</p>
           <div class="hero-facts">
             <span><b>Estimated uninterrupted work time</b> ${escapeHtml(pulse.flowRemainingLabel)}</span>
-            <span><b>Right now</b> ${escapeHtml(immediateAction(pulse))}</span>
+            <span><b>Decision</b> ${escapeHtml(immediateAction(pulse))}</span>
           </div>
         </div>
       </section>
 
-      <section class="decision-grid">
-        <section class="card why-card">
-          <p class="eyebrow">Why?</p>
-          <h2>${whyHeadline(pulse.healthState)}</h2>
-          <p>${escapeHtml(pulse.primaryExplanation)}</p>
-        </section>
-
-        <section class="card action-card">
+      <section class="decision-summary">
+        <section class="card next-step-card">
           <p class="eyebrow">Next best step</p>
           <h2>${escapeHtml(immediateAction(pulse))}</h2>
-          <p>${pulse.healthState === "healthy" ? "Close this and keep working." : "Choose the lowest-disruption moment. Protect active work first."}</p>
+          <p>${escapeHtml(pulse.primaryExplanation)}</p>
           <div class="time-gain">
-            <span>Estimated additional uninterrupted work</span>
+            <span>Estimated benefit</span>
             <strong>${escapeHtml(pulse.estimatedAdditionalWorkLabel)}</strong>
           </div>
         </section>
+        ${domainCards}
       </section>
 
-      ${careCard}
+      ${todaysOpportunities(pulse)}
       ${localDetails(pulse)}
 
       <footer>
@@ -325,6 +515,104 @@ function renderToday(pulse: TodayPulse, refreshing = false): void {
     void invoke("open_quick_checkin");
     renderQuickCheckin(pulse);
   });
+  wireCareActions(pulse);
+}
+
+function findApplicationByActionId(pulse: TodayPulse, id: string): ApplicationImpact | undefined {
+  return pulse.topApplications.find((application) => actionId(application) === id);
+}
+
+function wireCareActions(pulse: TodayPulse): void {
+  document.querySelectorAll<HTMLButtonElement>("[data-care-action]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const id = button.dataset.careAction;
+      const application = id ? findApplicationByActionId(pulse, id) : undefined;
+      if (application) {
+        void performApplicationAction(application);
+      }
+    });
+  });
+
+  document.querySelectorAll<HTMLButtonElement>("[data-care-remind]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const id = button.dataset.careRemind;
+      const application = id ? findApplicationByActionId(pulse, id) : undefined;
+      if (!application) return;
+
+      const state = readCareState();
+      state[actionId(application)] = {
+        remindUntil: Date.now() + 30 * 60 * 1000,
+      };
+      writeCareState(state);
+      careMessage = `${application.name} will come back in about 30 minutes if System Pulse is still open.`;
+      renderToday(pulse);
+    });
+  });
+
+  document.querySelectorAll<HTMLButtonElement>("[data-care-ignore]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const id = button.dataset.careIgnore;
+      const application = id ? findApplicationByActionId(pulse, id) : undefined;
+      if (!application) return;
+
+      const state = readCareState();
+      state[actionId(application)] = {
+        ignoredOn: todayKey(),
+      };
+      writeCareState(state);
+      careMessage = `${application.name} is ignored for today.`;
+      renderToday(pulse);
+    });
+  });
+
+  document.querySelectorAll<HTMLButtonElement>("[data-domain-action]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const actionKind = button.dataset.domainAction;
+      if (actionKind) {
+        void performDomainAction(actionKind);
+      }
+    });
+  });
+}
+
+async function performApplicationAction(application: ApplicationImpact): Promise<void> {
+  const target = application.actionTarget || application.name;
+  const confirmed = window.confirm(
+    `System Pulse will ask macOS to ${application.actionLabel.toLowerCase()} for ${target}. Continue?`,
+  );
+  if (!confirmed) return;
+
+  careMessage = `Working on ${target}...`;
+  if (currentPulse) renderToday(currentPulse, true);
+
+  try {
+    const message = await invoke<string>("perform_care_action", {
+      actionKind: application.actionKind,
+      target,
+    });
+    careMessage = message;
+    await loadToday({ keepExisting: true });
+  } catch (error) {
+    careMessage = error instanceof Error ? error.message : String(error);
+    if (currentPulse) renderToday(currentPulse);
+  }
+}
+
+async function performDomainAction(actionKind: string): Promise<void> {
+  careMessage = "Opening the right place in System Settings...";
+  if (currentPulse) renderToday(currentPulse, true);
+
+  try {
+    const message = await invoke<string>("perform_care_action", {
+      actionKind,
+      target: "",
+    });
+    careMessage = message;
+    if (currentPulse) renderToday(currentPulse);
+  } catch (error) {
+    careMessage = error instanceof Error ? error.message : String(error);
+    if (currentPulse) renderToday(currentPulse);
+  }
 }
 
 function renderLoading(): void {
