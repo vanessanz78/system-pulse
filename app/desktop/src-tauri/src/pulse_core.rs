@@ -195,7 +195,7 @@ fn primary_recommendation(
     if system_score >= 90 {
         return Recommendation {
             text: "Nothing needs your attention today.".to_string(),
-            explanation: "Memory, storage and application impact all look steady. You can get on with work.".to_string(),
+            explanation: "Everything feels steady today. You can get on with your work.".to_string(),
             confidence: 92,
             expected_improvement: "+0".to_string(),
         };
@@ -263,7 +263,6 @@ fn primary_recommendation(
 }
 
 fn memory_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
-    let available_ratio = ratio(snapshot.memory.available_bytes, snapshot.memory.total_bytes);
     let label = domain_label(score);
     let headline = if score >= 90 {
         "Memory looks steady."
@@ -272,8 +271,15 @@ fn memory_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
     } else {
         "Memory needs attention."
     };
-    let detail = format!(
-        "{} available. {} is currently in use.",
+    let detail = if score >= 90 {
+        "Your computer still has plenty of room to work comfortably."
+    } else if score >= 70 {
+        "Your computer has less breathing room than ideal, so heavy apps may start to affect smoothness."
+    } else {
+        "Your computer is likely to feel more constrained until memory pressure eases."
+    };
+    let value = format!(
+        "{} available, {} used",
         format_bytes(snapshot.memory.available_bytes),
         format_bytes(snapshot.memory.used_bytes)
     );
@@ -281,14 +287,24 @@ fn memory_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
     DomainHealth {
         label: label.to_string(),
         headline: headline.to_string(),
-        detail,
-        value: format!("{:.0}% available", available_ratio * 100.0),
+        detail: detail.to_string(),
+        value,
     }
 }
 
 fn storage_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
-    let available_ratio = ratio(snapshot.storage.available_bytes, snapshot.storage.total_bytes);
     let label = domain_label(score);
+    let storage_location = if snapshot.storage.mount_point == "/"
+        || snapshot
+            .storage
+            .mount_point
+            .chars()
+            .all(|character| character.is_ascii_digit())
+    {
+        "your Mac"
+    } else {
+        snapshot.storage.mount_point.as_str()
+    };
     let headline = if score >= 90 {
         "Storage has room to breathe."
     } else if score >= 70 {
@@ -296,18 +312,25 @@ fn storage_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
     } else {
         "Storage needs attention soon."
     };
-    let detail = format!(
-        "{} available on {}. {} is currently used.",
+    let detail = if score >= 90 {
+        "You have plenty of free space."
+    } else if score >= 70 {
+        "Free space is getting lower, but it does not need to interrupt you right now."
+    } else {
+        "Free space is tight enough that it may start affecting comfort and reliability."
+    };
+    let value = format!(
+        "{} available on {}, {} used",
         format_bytes(snapshot.storage.available_bytes),
-        snapshot.storage.mount_point,
+        storage_location,
         format_bytes(snapshot.storage.used_bytes)
     );
 
     DomainHealth {
         label: label.to_string(),
         headline: headline.to_string(),
-        detail,
-        value: format!("{:.0}% available", available_ratio * 100.0),
+        detail: detail.to_string(),
+        value,
     }
 }
 
@@ -321,12 +344,19 @@ fn browser_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
         } else {
             "Browser activity is likely affecting responsiveness."
         };
-        let detail = format!(
-            "{} is using {} across {} processes.",
-            browser.name,
-            format_bytes(browser.memory_bytes),
-            browser.process_count
-        );
+        let detail = if score >= 90 {
+            "Browser activity is not getting in your way right now.".to_string()
+        } else if score >= 70 {
+            format!(
+                "{} may be adding some weight to the current experience.",
+                browser.name
+            )
+        } else {
+            format!(
+                "{} is likely one of the reasons the computer may feel slower.",
+                browser.name
+            )
+        };
 
         DomainHealth {
             label: label.to_string(),
@@ -401,21 +431,28 @@ fn application_impacts(snapshot: &SystemSnapshot) -> Vec<ApplicationImpact> {
     snapshot
         .applications
         .iter()
-        .map(|application| {
+        .enumerate()
+        .map(|(index, application)| {
             let app_ratio = ratio(application.memory_bytes, snapshot.memory.total_bytes);
-            let impact_label = if app_ratio >= 0.15 {
-                "High"
+            let impact_label = if index == 0 {
+                "Using the most memory right now"
             } else if app_ratio >= 0.08 {
-                "Medium"
+                "Worth keeping an eye on"
             } else {
-                "Low"
+                "Looks steady"
             };
-            let detail = if is_observed_browser(snapshot, &application.name) {
+            let detail = if index == 0 && is_observed_browser(snapshot, &application.name) {
+                "Browser tabs, helpers and renderer processes are grouped here.".to_string()
+            } else if index == 0 {
+                "This can be normal while it is active in your current workload.".to_string()
+            } else if is_observed_browser(snapshot, &application.name) {
                 "Includes browser helper and renderer processes.".to_string()
             } else if application.name == "WindowServer" {
-                "Desktop responsiveness support process.".to_string()
+                "Supports desktop responsiveness and window movement.".to_string()
+            } else if app_ratio >= 0.08 {
+                "Using a noticeable amount of memory in this check-in.".to_string()
             } else {
-                "Using local memory right now.".to_string()
+                "Not standing out in the current check-in.".to_string()
             };
             ApplicationImpact {
                 name: application.name.clone(),
