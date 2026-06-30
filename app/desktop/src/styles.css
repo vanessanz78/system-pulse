@@ -187,6 +187,12 @@ p {
   gap: 0.85rem;
 }
 
+.primary-recommendation {
+  color: var(--text);
+  font-size: 1.15rem;
+  font-weight: 720;
+}
+
 .hero-facts {
   display: flex;
   flex-wrap: wrap;
@@ -240,6 +246,7 @@ p {
 .card-heading {
   align-items: center;
   display: flex;
+  gap: 1rem;
   justify-content: space-between;
 }
 
@@ -252,30 +259,37 @@ p {
   font-size: 0.9rem;
 }
 
+.section-card {
+  padding: 1.35rem;
+}
+
 .app-list {
   display: grid;
   gap: 0.7rem;
   list-style: none;
   margin: 0;
-  padding: 1.1rem;
+  padding: 1.1rem 0 0;
 }
 
 .app-row {
-  align-items: center;
+  align-items: start;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 8px;
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  gap: 1.1rem;
+  grid-template-columns: minmax(0, 1.35fr) minmax(15rem, 1fr) auto;
   padding: 0.9rem;
 }
 
-.app-row div:first-child {
+.app-main,
+.app-care,
+.app-metrics {
   display: grid;
   gap: 0.25rem;
 }
 
-.app-row div:first-child b {
+.app-main b {
   color: var(--text);
   font-size: 0.92rem;
   font-weight: 700;
@@ -286,14 +300,48 @@ p {
   font-size: 0.9rem;
 }
 
-.app-metrics {
-  display: grid;
-  gap: 0.25rem;
-  justify-items: end;
+.app-care {
+  background: rgba(120, 212, 90, 0.07);
+  border: 1px solid rgba(120, 212, 90, 0.14);
+  border-radius: 8px;
+  padding: 0.75rem;
 }
 
-.app-metrics b {
+.app-care span {
+  color: var(--healthy);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-care strong {
   color: var(--text);
+  font-size: 0.94rem;
+}
+
+.app-care p {
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.app-care em {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-style: normal;
+}
+
+.app-metrics {
+  justify-items: end;
+  min-width: 5.4rem;
+}
+
+.app-metrics strong {
+  color: var(--text);
+}
+
+.empty-row {
+  grid-template-columns: minmax(0, 1fr) minmax(15rem, 0.65fr);
 }
 
 .loading-shell {
