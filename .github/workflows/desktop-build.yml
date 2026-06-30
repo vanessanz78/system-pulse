@@ -79,7 +79,13 @@ jobs:
         run: pnpm --filter @system-pulse/desktop prepare:icons
 
       - name: Build desktop app
-        run: pnpm --filter @system-pulse/desktop build
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            pnpm --filter @system-pulse/desktop exec tauri build --bundles app
+          else
+            pnpm --filter @system-pulse/desktop build
+          fi
 
       - name: Add macOS UAT install notes
         if: runner.os == 'macOS'
@@ -91,6 +97,8 @@ jobs:
 
           This build is for private testing only. It is ad-hoc signed, but it is
           not Apple Developer ID signed or notarized yet.
+
+          This GitHub artifact contains a zipped System Pulse.app bundle for UAT.
 
           If macOS says the app is damaged or cannot be opened:
 
