@@ -8,7 +8,8 @@
     "build": "tauri build",
     "dev:web": "vite --host 127.0.0.1 --port 1420",
     "build:web": "vite build",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "prepare:icons": "python scripts/generate-icons.py"
   },
   "dependencies": {
     "@tauri-apps/api": "2.11.1"
