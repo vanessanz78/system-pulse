@@ -6,7 +6,7 @@ use models::TodayPulse;
 use tauri::image::Image;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, LogicalSize, Manager, Size};
 
 #[tauri::command]
 fn get_today_pulse() -> Result<TodayPulse, String> {
@@ -17,7 +17,12 @@ fn get_today_pulse() -> Result<TodayPulse, String> {
 }
 
 #[tauri::command]
-fn update_tray_score(app: AppHandle, system_score: u8, health_state: String) -> Result<(), String> {
+fn update_tray_score(
+    app: AppHandle,
+    system_score: u8,
+    health_state: String,
+    flow_remaining_label: String,
+) -> Result<(), String> {
     let Some(tray) = app.tray_by_id("system-pulse") else {
         return Ok(());
     };
@@ -29,16 +34,44 @@ fn update_tray_score(app: AppHandle, system_score: u8, health_state: String) -> 
     };
     tray.set_title(Some(&system_score.to_string()))
         .map_err(|error| format!("Could not update menu bar score: {error}"))?;
-    tray.set_tooltip(Some(&format!("System Pulse {label}: {system_score}")))
+    tray.set_tooltip(Some(&format!(
+        "System Pulse {label}: {system_score}. {flow_remaining_label} flow remaining."
+    )))
         .map_err(|error| format!("Could not update menu bar tooltip: {error}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+fn open_today_window(app: AppHandle) -> Result<(), String> {
+    show_today(&app);
+    Ok(())
+}
+
+#[tauri::command]
+fn open_quick_checkin(app: AppHandle) -> Result<(), String> {
+    show_quick_checkin(&app);
     Ok(())
 }
 
 fn show_today(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
+        let _ = window.set_min_size(Some(Size::Logical(LogicalSize::new(820.0, 640.0))));
+        let _ = window.set_size(Size::Logical(LogicalSize::new(960.0, 720.0)));
         let _ = window.show();
         let _ = window.unminimize();
         let _ = window.set_focus();
+        let _ = app.emit("system-pulse-show-today", ());
+    }
+}
+
+fn show_quick_checkin(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.set_min_size(Some(Size::Logical(LogicalSize::new(360.0, 480.0))));
+        let _ = window.set_size(Size::Logical(LogicalSize::new(440.0, 560.0)));
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+        let _ = app.emit("system-pulse-show-quick-checkin", ());
     }
 }
 
@@ -64,7 +97,7 @@ fn main() {
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "open_today" => show_today(app),
                     "refresh_health" => {
-                        show_today(app);
+                        show_quick_checkin(app);
                         let _ = app.emit("system-pulse-refresh", ());
                     }
                     "quit" => app.exit(0),
@@ -77,7 +110,7 @@ fn main() {
                         ..
                     } = event
                     {
-                        show_today(tray.app_handle());
+                        show_quick_checkin(tray.app_handle());
                     }
                 })
                 .build(app)?;
@@ -86,7 +119,9 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             get_today_pulse,
-            update_tray_score
+            update_tray_score,
+            open_today_window,
+            open_quick_checkin
         ])
         .run(tauri::generate_context!())
         .expect("error while running System Pulse");

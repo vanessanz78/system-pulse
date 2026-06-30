@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import "./styles.css";
 
 type HealthState = "healthy" | "attention" | "critical";
+type ViewMode = "quick" | "today";
 
 type DomainHealth = {
   label: string;
@@ -30,6 +31,9 @@ type TodayPulse = {
   primaryRecommendation: string;
   confidence: number;
   expectedImprovement: string;
+  flowRemainingLabel: string;
+  flowRemainingMinutes: number;
+  flowConfidence: number;
   memoryHealth: DomainHealth;
   storageHealth: DomainHealth;
   experienceHealth: DomainHealth;
@@ -51,6 +55,7 @@ if (!app) {
 const appRoot = app;
 let currentPulse: TodayPulse | null = null;
 let isRefreshing = false;
+let currentView: ViewMode = "quick";
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => {
@@ -96,6 +101,20 @@ function scoreFeeling(state: HealthState): string {
   if (state === "healthy") return "Everything feels steady today.";
   if (state === "attention") return "A few things are worth noticing.";
   return "Your computer needs a calmer moment.";
+}
+
+function quickHeadline(state: HealthState): string {
+  if (state === "healthy") return "Everything is healthy.";
+  if (state === "attention") return "A little care may help soon.";
+  return "Your momentum needs care.";
+}
+
+function quickBody(state: HealthState): string {
+  if (state === "healthy") return "Your computer is supporting your work right now.";
+  if (state === "attention") {
+    return "Your computer may start feeling heavier if the current pattern continues.";
+  }
+  return "Your computer is likely to interrupt focused work unless you pause for care.";
 }
 
 function formatCollectedAt(value: string): string {
@@ -170,6 +189,86 @@ function domainCard(title: string, domain: DomainHealth): string {
   `;
 }
 
+function glanceRow(label: string, domain: DomainHealth): string {
+  return `
+    <li>
+      <span class="glance-dot" aria-hidden="true"></span>
+      <strong>${escapeHtml(label)}</strong>
+      <b>${escapeHtml(domain.label)}</b>
+    </li>
+  `;
+}
+
+function renderCurrentView(pulse: TodayPulse, refreshing = false): void {
+  if (currentView === "today") {
+    renderToday(pulse, refreshing);
+    return;
+  }
+
+  renderQuickCheckin(pulse, refreshing);
+}
+
+function renderQuickCheckin(pulse: TodayPulse, refreshing = false): void {
+  const refreshLabel = refreshing ? "Refreshing..." : "Refresh";
+  const glanceRows = [
+    glanceRow("Applications", pulse.applicationHealth),
+    glanceRow("Storage", pulse.storageHealth),
+    glanceRow("Memory", pulse.memoryHealth),
+    glanceRow("Experience", pulse.experienceHealth),
+  ].join("");
+
+  appRoot.innerHTML = `
+    <main class="quick-shell" data-state="${pulse.healthState}">
+      <section class="quick-card">
+        <div class="quick-tools">
+          <span>System Pulse</span>
+          <button id="quick-refresh-button" class="icon-button" type="button" ${refreshing ? "disabled" : ""}>${refreshLabel}</button>
+        </div>
+
+        <div class="quick-hero">
+          <div class="quick-score" aria-label="System Pulse score ${pulse.systemScore}">
+            <span class="heart quick-heart" aria-hidden="true">&hearts;</span>
+            <strong>${pulse.systemScore}</strong>
+          </div>
+          <div class="quick-summary">
+            <h1>${quickHeadline(pulse.healthState)}</h1>
+            <p>${quickBody(pulse.healthState)}</p>
+            <span>Estimated uninterrupted work time</span>
+            <b>${escapeHtml(pulse.flowRemainingLabel)}</b>
+          </div>
+        </div>
+
+        <div class="quick-care">
+          <span>Next best step</span>
+          <strong>${escapeHtml(pulse.primaryRecommendation)}</strong>
+          <p>${escapeHtml(pulse.primaryExplanation)}</p>
+        </div>
+
+        <div class="quick-glance">
+          <h2>At a Glance</h2>
+          <ul>${glanceRows}</ul>
+        </div>
+
+        <button id="open-today-button" class="open-today-button" type="button">
+          Open Today
+          <span aria-hidden="true">&rsaquo;</span>
+        </button>
+
+        <p class="quick-footnote">${pulse.flowConfidence}% confidence. Local signals only.</p>
+      </section>
+    </main>
+  `;
+
+  document.querySelector<HTMLButtonElement>("#quick-refresh-button")?.addEventListener("click", () => {
+    void loadToday({ keepExisting: true });
+  });
+  document.querySelector<HTMLButtonElement>("#open-today-button")?.addEventListener("click", () => {
+    currentView = "today";
+    void invoke("open_today_window");
+    renderToday(pulse);
+  });
+}
+
 function renderToday(pulse: TodayPulse, refreshing = false): void {
   const projectedPulse = expectedPulseLabel(pulse.systemScore, pulse.expectedImprovement);
   const applications = pulse.topApplications.length
@@ -186,7 +285,7 @@ function renderToday(pulse: TodayPulse, refreshing = false): void {
   const refreshLabel = refreshing ? "Refreshing..." : "Refresh";
 
   appRoot.innerHTML = `
-    <div class="shell" data-state="${pulse.healthState}">
+    <div class="shell today-shell" data-state="${pulse.healthState}">
       <header class="topbar">
         <div class="brand-mark" aria-label="System Pulse health state">
           <span class="heart" aria-hidden="true">&hearts;</span>
@@ -199,6 +298,7 @@ function renderToday(pulse: TodayPulse, refreshing = false): void {
         </div>
         <div class="topbar-actions">
           <span class="platform">${pulse.platform}</span>
+          <button id="quick-view-button" type="button">Check-in</button>
           <button id="refresh-button" type="button" ${refreshing ? "disabled" : ""}>${refreshLabel}</button>
         </div>
       </header>
@@ -215,6 +315,7 @@ function renderToday(pulse: TodayPulse, refreshing = false): void {
           <p class="primary-recommendation">${escapeHtml(pulse.primaryRecommendation)}</p>
           <p>${escapeHtml(pulse.primaryExplanation)}</p>
           <div class="hero-facts">
+            <span><b>Flow remaining</b> ${escapeHtml(pulse.flowRemainingLabel)}</span>
             <span><b>Expected Pulse</b> ${projectedPulse}</span>
             <span><b>${pulse.confidence}%</b> confidence</span>
           </div>
@@ -244,6 +345,11 @@ function renderToday(pulse: TodayPulse, refreshing = false): void {
 
   document.querySelector<HTMLButtonElement>("#refresh-button")?.addEventListener("click", () => {
     void loadToday({ keepExisting: true });
+  });
+  document.querySelector<HTMLButtonElement>("#quick-view-button")?.addEventListener("click", () => {
+    currentView = "quick";
+    void invoke("open_quick_checkin");
+    renderQuickCheckin(pulse);
   });
 }
 
@@ -281,6 +387,7 @@ async function updateTray(pulse: TodayPulse): Promise<void> {
     await invoke("update_tray_score", {
       systemScore: pulse.systemScore,
       healthState: pulse.healthState,
+      flowRemainingLabel: pulse.flowRemainingLabel,
     });
   } catch {
     // Tray title updates are best-effort; the Today screen remains authoritative.
@@ -292,7 +399,7 @@ async function loadToday(options: { keepExisting?: boolean } = {}): Promise<void
   isRefreshing = true;
 
   if (options.keepExisting && currentPulse) {
-    renderToday(currentPulse, true);
+    renderCurrentView(currentPulse, true);
   } else {
     renderLoading();
   }
@@ -300,7 +407,7 @@ async function loadToday(options: { keepExisting?: boolean } = {}): Promise<void
   try {
     const pulse = await invoke<TodayPulse>("get_today_pulse");
     currentPulse = pulse;
-    renderToday(pulse);
+    renderCurrentView(pulse);
     await updateTray(pulse);
   } catch (error) {
     renderError(error instanceof Error ? error.message : String(error));
@@ -311,5 +418,17 @@ async function loadToday(options: { keepExisting?: boolean } = {}): Promise<void
 
 void listen("system-pulse-refresh", () => {
   void loadToday({ keepExisting: true });
+});
+void listen("system-pulse-show-quick-checkin", () => {
+  currentView = "quick";
+  if (currentPulse) {
+    renderQuickCheckin(currentPulse);
+  }
+});
+void listen("system-pulse-show-today", () => {
+  currentView = "today";
+  if (currentPulse) {
+    renderToday(currentPulse);
+  }
 });
 void loadToday();

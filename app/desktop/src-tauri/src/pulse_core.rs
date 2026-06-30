@@ -37,6 +37,15 @@ pub fn evaluate(snapshot: SystemSnapshot) -> TodayPulse {
         system_score,
     );
     let momentum_health = momentum_health(system_score, &recommendation);
+    let flow = flow_remaining_estimate(
+        system_score,
+        memory_score,
+        storage_score,
+        application_score,
+        browser_score,
+        renderer_score,
+        window_server_score,
+    );
 
     TodayPulse {
         collected_at: snapshot.collected_at,
@@ -47,6 +56,9 @@ pub fn evaluate(snapshot: SystemSnapshot) -> TodayPulse {
         primary_recommendation: recommendation.text,
         confidence: recommendation.confidence,
         expected_improvement: recommendation.expected_improvement,
+        flow_remaining_label: flow.label,
+        flow_remaining_minutes: flow.minutes,
+        flow_confidence: flow.confidence,
         memory_health,
         storage_health,
         browser_health,
@@ -64,6 +76,12 @@ struct Recommendation {
     explanation: String,
     confidence: u8,
     expected_improvement: String,
+}
+
+struct FlowEstimate {
+    label: String,
+    minutes: u32,
+    confidence: u8,
 }
 
 fn weighted_score(
@@ -265,6 +283,67 @@ fn primary_recommendation(
             confidence: 82,
             expected_improvement: expected_improvement(system_score, 92),
         }
+    }
+}
+
+fn flow_remaining_estimate(
+    system_score: u8,
+    memory_score: u8,
+    storage_score: u8,
+    application_score: u8,
+    browser_score: u8,
+    renderer_score: u8,
+    window_server_score: u8,
+) -> FlowEstimate {
+    let weakest_signal = [
+        memory_score,
+        storage_score,
+        application_score,
+        browser_score,
+        renderer_score,
+        window_server_score,
+    ]
+    .into_iter()
+    .min()
+    .unwrap_or(system_score);
+
+    let blended_score = (system_score as f64 * 0.72) + (weakest_signal as f64 * 0.28);
+    let minutes = if blended_score >= 95.0 {
+        410
+    } else if blended_score >= 90.0 {
+        360
+    } else if blended_score >= 82.0 {
+        240
+    } else if blended_score >= 74.0 {
+        110
+    } else if blended_score >= 66.0 {
+        52
+    } else {
+        18
+    };
+
+    let confidence = if system_score >= 90 && weakest_signal >= 84 {
+        82
+    } else if system_score >= 75 && weakest_signal >= 70 {
+        74
+    } else {
+        66
+    };
+
+    FlowEstimate {
+        label: format_flow_remaining(minutes),
+        minutes,
+        confidence,
+    }
+}
+
+fn format_flow_remaining(minutes: u32) -> String {
+    if minutes >= 60 {
+        let hours = minutes / 60;
+        let remaining_minutes = minutes % 60;
+        format!("{hours}h {remaining_minutes:02}m")
+    } else {
+        format!("{minutes}m")
     }
 }
 
