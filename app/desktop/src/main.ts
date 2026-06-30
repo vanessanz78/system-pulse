@@ -70,6 +70,27 @@ function healthText(state: HealthState): string {
   return "Immediate action";
 }
 
+function greeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 5) return "Hello.";
+  if (hour < 12) return "Good morning.";
+  if (hour < 17) return "Good afternoon.";
+  if (hour < 22) return "Good evening.";
+  return "Hello.";
+}
+
+function experienceLine(state: HealthState): string {
+  if (state === "healthy") return "Your computer feels healthy today.";
+  if (state === "attention") return "Your computer may feel a little heavier today.";
+  return "Your computer may feel under pressure today.";
+}
+
+function scoreFeeling(state: HealthState): string {
+  if (state === "healthy") return "Everything feels steady today.";
+  if (state === "attention") return "A few things are worth noticing.";
+  return "Your computer needs a calmer moment.";
+}
+
 function formatCollectedAt(value: string): string {
   const seconds = Number(value.replace(/^Unix\s+/, ""));
   if (Number.isFinite(seconds) && seconds > 0) {
@@ -87,11 +108,11 @@ function appRow(application: ApplicationImpact): string {
     <li class="app-row">
       <div>
         <strong>${escapeHtml(application.name)}</strong>
+        <b>${escapeHtml(application.impactLabel)}</b>
         <span>${escapeHtml(application.detail)}</span>
       </div>
       <div class="app-metrics">
         <span>${escapeHtml(application.memoryDisplay)}</span>
-        <b>${escapeHtml(application.impactLabel)}</b>
       </div>
     </li>
   `;
@@ -106,7 +127,10 @@ function domainCard(title: string, domain: DomainHealth): string {
       </div>
       <h3>${escapeHtml(domain.headline)}</h3>
       <p>${escapeHtml(domain.detail)}</p>
-      <span class="metric-pill">${escapeHtml(domain.value)}</span>
+      <details class="metric-details">
+        <summary>Details</summary>
+        <span>${escapeHtml(domain.value)}</span>
+      </details>
     </section>
   `;
 }
@@ -133,7 +157,8 @@ function renderToday(pulse: TodayPulse, refreshing = false): void {
         </div>
         <div>
           <p class="eyebrow">Today</p>
-          <h1>Your system is ${healthText(pulse.healthState).toLowerCase()}.</h1>
+          <h1>${greeting()}</h1>
+          <p class="topbar-subtitle">${experienceLine(pulse.healthState)}</p>
         </div>
         <div class="topbar-actions">
           <span class="platform">${pulse.platform}</span>
@@ -146,9 +171,10 @@ function renderToday(pulse: TodayPulse, refreshing = false): void {
           <span class="heart large-heart" aria-hidden="true">&hearts;</span>
           <strong>${pulse.systemScore}</strong>
           <span>${healthText(pulse.healthState)}</span>
+          <p>${scoreFeeling(pulse.healthState)}</p>
         </div>
         <div class="hero-copy">
-          <p class="eyebrow">Recommended for you</p>
+          <p class="eyebrow">Today's check-in</p>
           <h2>${escapeHtml(pulse.primaryRecommendation)}</h2>
           <p>${escapeHtml(pulse.primaryExplanation)}</p>
           <div class="hero-facts">
@@ -165,7 +191,7 @@ function renderToday(pulse: TodayPulse, refreshing = false): void {
       <section class="card">
         <div class="card-heading">
           <span>Applications</span>
-          <b>Memory impact</b>
+          <b>PulseCore context</b>
         </div>
         <ul class="app-list">
           ${applications}
