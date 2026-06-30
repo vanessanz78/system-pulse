@@ -42,6 +42,11 @@ button {
   padding: 0.8rem 1rem;
 }
 
+button:disabled {
+  cursor: progress;
+  opacity: 0.62;
+}
+
 .shell {
   display: grid;
   gap: 1.15rem;
@@ -56,6 +61,12 @@ button {
   display: grid;
   gap: 1rem;
   grid-template-columns: auto 1fr auto;
+}
+
+.topbar-actions {
+  align-items: center;
+  display: flex;
+  gap: 0.8rem;
 }
 
 .brand-mark {
@@ -193,6 +204,10 @@ p {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.health-grid {
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+}
+
 .compact-card {
   display: grid;
   gap: 0.8rem;
@@ -263,6 +278,10 @@ p {
   max-width: 520px;
   padding: 2rem;
   text-align: center;
+}
+
+.quiet-copy {
+  font-size: 0.9rem;
 }
 
 footer {
