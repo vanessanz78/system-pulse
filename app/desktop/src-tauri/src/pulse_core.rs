@@ -446,7 +446,7 @@ fn application_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
     let headline = if score >= 90 {
         "Applications look steady."
     } else if score >= 70 {
-        "One application is worth watching."
+        "One application may need care at your next break."
     } else {
         "One application may interrupt your momentum."
     };
@@ -487,6 +487,9 @@ fn application_impacts(snapshot: &SystemSnapshot) -> Vec<ApplicationImpact> {
             let is_browser = is_observed_browser(snapshot, &application.name);
             let is_chrome = application.name.to_lowercase().contains("chrome");
             let is_codex = application.name.to_lowercase().contains("codex");
+            let is_safari = application.name == "Safari";
+            let is_finder = application.name == "Finder";
+            let is_window_server = application.name == "WindowServer";
             let display_name = display_application_name(&application.name);
             let impact_label = if index == 0 {
                 format!("{display_name} is shaping today's check-in.")
@@ -514,48 +517,117 @@ fn application_impacts(snapshot: &SystemSnapshot) -> Vec<ApplicationImpact> {
             } else {
                 "Not standing out in the current check-in.".to_string()
             };
-            let (care_label, care_detail, care_estimated_improvement) =
-                if index == 0 && is_browser {
-                    (
-                        "Restart at your next break".to_string(),
-                        format!(
-                            "Restart {display_name} at a natural break if today's experience starts to feel heavy."
-                        ),
-                        "+35 minutes".to_string(),
-                    )
-                } else if index == 0 && application.name == "WindowServer" && app_ratio >= 0.15 {
-                    (
-                        "Restart when work is saved".to_string(),
-                        "Restart your Mac after your active work is safe.".to_string(),
-                        "+45 minutes".to_string(),
-                    )
-                } else if index == 0 && app_ratio >= 0.15 {
-                    (
-                        "Restart when finished".to_string(),
-                        format!(
-                            "Restart {display_name} after you are done with the current task."
-                        ),
-                        "+25 minutes".to_string(),
-                    )
-                } else if index == 0 {
-                    (
-                        "No action needed".to_string(),
-                        "This looks normal for what you are doing right now.".to_string(),
-                        "+0 minutes".to_string(),
-                    )
-                } else if app_ratio >= 0.08 {
-                    (
-                        "Care later if needed".to_string(),
-                        "Only needs care if your Mac starts to feel less responsive.".to_string(),
-                        "+10 minutes".to_string(),
-                    )
+            let (
+                care_label,
+                care_detail,
+                care_estimated_improvement,
+                action_kind,
+                action_target,
+                action_label,
+                show_opportunity,
+                protected_work,
+            ) = if is_codex {
+                (
+                    "No recommendation".to_string(),
+                    "PulseCore detected active work. Restarting now would interrupt your workflow, so System Pulse will stay quiet unless care becomes worthwhile later.".to_string(),
+                    "+0 minutes".to_string(),
+                    "none".to_string(),
+                    String::new(),
+                    String::new(),
+                    false,
+                    true,
+                )
+            } else if index == 0 && is_browser {
+                let action_kind = if is_safari { "quitApp" } else { "restartApp" };
+                let action_label = if is_safari {
+                    "Quit Safari".to_string()
                 } else {
-                    (
-                        "No action needed".to_string(),
-                        "Not likely to interrupt your momentum.".to_string(),
-                        "+0 minutes".to_string(),
-                    )
+                    "Restart now".to_string()
                 };
+                let care_label = if is_safari {
+                    "Quit Safari at your next break".to_string()
+                } else {
+                    format!("Restart {display_name} at your next break")
+                };
+                (
+                    care_label,
+                    browser_care_detail(display_name),
+                    "+35 minutes".to_string(),
+                    action_kind.to_string(),
+                    display_name.to_string(),
+                    action_label,
+                    true,
+                    false,
+                )
+            } else if index == 0 && is_finder && app_ratio >= 0.08 {
+                (
+                    "Restart Finder at your next break".to_string(),
+                    "Finder can sometimes make window movement and file browsing feel heavier. Restarting Finder is usually quick and does not restart your Mac.".to_string(),
+                    "+5 minutes".to_string(),
+                    "restartFinder".to_string(),
+                    "Finder".to_string(),
+                    "Restart Finder".to_string(),
+                    true,
+                    false,
+                )
+            } else if index == 0 && is_window_server && app_ratio >= 0.15 {
+                (
+                    "Review desktop responsiveness".to_string(),
+                    "Desktop responsiveness is doing unusual work. Opening Activity Monitor is the safest next step before deciding whether a full Mac restart is worth it.".to_string(),
+                    "+10 minutes".to_string(),
+                    "openActivityMonitor".to_string(),
+                    "Activity Monitor".to_string(),
+                    "Open Activity Monitor".to_string(),
+                    true,
+                    false,
+                )
+            } else if index == 0 && app_ratio >= 0.15 && safe_restart_target(display_name) {
+                (
+                    format!("Restart {display_name} when finished"),
+                    format!(
+                        "{display_name} is carrying a noticeable amount of work. Restarting it after your current task may make the next work block feel smoother."
+                    ),
+                    "+25 minutes".to_string(),
+                    "restartApp".to_string(),
+                    display_name.to_string(),
+                    "Restart now".to_string(),
+                    true,
+                    false,
+                )
+            } else if index == 0 {
+                (
+                    "No action needed today".to_string(),
+                    "This looks normal for what you are doing right now.".to_string(),
+                    "+0 minutes".to_string(),
+                    "none".to_string(),
+                    String::new(),
+                    String::new(),
+                    false,
+                    false,
+                )
+            } else if app_ratio >= 0.08 {
+                (
+                    "Best reviewed at your next break".to_string(),
+                    "Only needs care if your Mac starts to feel less responsive.".to_string(),
+                    "+10 minutes".to_string(),
+                    "none".to_string(),
+                    String::new(),
+                    String::new(),
+                    false,
+                    false,
+                )
+            } else {
+                (
+                    "No action needed today".to_string(),
+                    "Not likely to interrupt your momentum.".to_string(),
+                    "+0 minutes".to_string(),
+                    "none".to_string(),
+                    String::new(),
+                    String::new(),
+                    false,
+                    false,
+                )
+            };
             ApplicationImpact {
                 name: display_name.to_string(),
                 memory_display: format_bytes(application.memory_bytes),
@@ -564,6 +636,11 @@ fn application_impacts(snapshot: &SystemSnapshot) -> Vec<ApplicationImpact> {
                 care_label,
                 care_detail,
                 care_estimated_improvement,
+                action_kind,
+                action_target,
+                action_label,
+                show_opportunity,
+                protected_work,
             }
         })
         .collect()
@@ -601,6 +678,23 @@ fn display_application_name(name: &str) -> &str {
     } else {
         name
     }
+}
+
+fn safe_restart_target(name: &str) -> bool {
+    matches!(
+        name,
+        "Google Chrome" | "Microsoft Edge" | "Firefox" | "Safari" | "Finder"
+    )
+}
+
+fn browser_care_detail(name: &str) -> String {
+    if name == "Safari" {
+        return "Safari can hold onto tab and page work over long sessions. Quitting it at a natural break can free that work without interrupting what you are doing now.".to_string();
+    }
+
+    format!(
+        "{name} gradually accumulates browser processes over long sessions. This does not usually cause problems immediately, but it can begin making your Mac feel less responsive over time."
+    )
 }
 
 fn browser_recommendation_explanation(browser: &BrowserSnapshot) -> String {
