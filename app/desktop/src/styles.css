@@ -469,13 +469,12 @@ p {
   border-radius: 8px;
   display: grid;
   gap: 1.1rem;
-  grid-template-columns: minmax(0, 1.35fr) minmax(15rem, 1fr) auto;
+  grid-template-columns: minmax(0, 1.1fr) minmax(15rem, 0.9fr);
   padding: 0.9rem;
 }
 
 .app-main,
-.app-care,
-.app-metrics {
+.app-care {
   display: grid;
   gap: 0.25rem;
 }
@@ -515,19 +514,14 @@ p {
   line-height: 1.4;
 }
 
-.app-care em {
+.app-details {
   color: var(--muted);
   font-size: 0.82rem;
-  font-style: normal;
+  margin-top: 0.25rem;
 }
 
-.app-metrics {
-  justify-items: end;
-  min-width: 5.4rem;
-}
-
-.app-metrics strong {
-  color: var(--text);
+.app-details summary {
+  cursor: pointer;
 }
 
 .empty-row {

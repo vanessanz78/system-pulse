@@ -19,7 +19,6 @@ type ApplicationImpact = {
   detail: string;
   careLabel: string;
   careDetail: string;
-  careEstimatedImprovement: string;
 };
 
 type TodayPulse = {
@@ -29,19 +28,14 @@ type TodayPulse = {
   healthState: HealthState;
   primaryExplanation: string;
   primaryRecommendation: string;
-  confidence: number;
-  expectedImprovement: string;
   flowRemainingLabel: string;
   flowRemainingMinutes: number;
-  flowConfidence: number;
   memoryHealth: DomainHealth;
   storageHealth: DomainHealth;
   experienceHealth: DomainHealth;
   applicationHealth: DomainHealth;
   momentumHealth: DomainHealth;
   browserHealth?: DomainHealth;
-  rendererHealth?: DomainHealth;
-  windowServerHealth?: DomainHealth;
   topApplications: ApplicationImpact[];
 };
 
@@ -76,25 +70,17 @@ function escapeHtml(value: string): string {
   });
 }
 
-function healthText(state: HealthState): string {
-  if (state === "healthy") return "Healthy";
-  if (state === "attention") return "Needs attention";
-  return "Immediate action";
+function scoreInterpretation(score: number): string {
+  if (score >= 95) return "Excellent";
+  if (score >= 80) return "Working well";
+  if (score >= 60) return "Worth watching";
+  if (score >= 40) return "Plan some care";
+  if (score >= 20) return "Recommended today";
+  return "Act soon";
 }
 
-function greeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 5) return `Hello, ${USER_NAME}.`;
-  if (hour < 12) return `Good morning, ${USER_NAME}.`;
-  if (hour < 17) return `Good afternoon, ${USER_NAME}.`;
-  if (hour < 22) return `Good evening, ${USER_NAME}.`;
-  return `Hello, ${USER_NAME}.`;
-}
-
-function experienceLine(state: HealthState): string {
-  if (state === "healthy") return "Your computer feels healthy today.";
-  if (state === "attention") return "Your computer may feel a little heavier today.";
-  return "Your computer may feel under pressure today.";
+function todayHeading(): string {
+  return `${USER_NAME}'s Today`;
 }
 
 function scoreFeeling(state: HealthState): string {
@@ -110,11 +96,11 @@ function quickHeadline(state: HealthState): string {
 }
 
 function quickBody(state: HealthState): string {
-  if (state === "healthy") return "Your computer is supporting your work right now.";
+  if (state === "healthy") return "You can keep working. No action is needed right now.";
   if (state === "attention") {
-    return "Your computer may start feeling heavier if the current pattern continues.";
+    return "You can keep working, but one thing is worth watching.";
   }
-  return "Your computer is likely to interrupt focused work unless you pause for care.";
+  return "Pause for care soon so your computer does not interrupt your work.";
 }
 
 function formatCollectedAt(value: string): string {
@@ -129,44 +115,22 @@ function formatCollectedAt(value: string): string {
   return value;
 }
 
-function parseImprovement(value: string): number {
-  const parsed = Number(value.replace("+", ""));
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function expectedPulse(currentScore: number, improvement: string): number {
-  return Math.min(100, currentScore + parseImprovement(improvement));
-}
-
-function expectedPulseLabel(currentScore: number, improvement: string): string {
-  const pulse = expectedPulse(currentScore, improvement);
-  return parseImprovement(improvement) > 0 ? `${pulse} after care` : `${pulse} now`;
-}
-
-function appRow(application: ApplicationImpact, currentScore: number): string {
-  const improvement = parseImprovement(application.careEstimatedImprovement);
-  const expectedPulse = Math.min(100, currentScore + improvement);
-  const pulseCopy =
-    improvement > 0
-      ? `<em>Expected Pulse ${expectedPulse} after care</em>`
-      : `<em>Pulse steady</em>`;
-
+function appRow(application: ApplicationImpact): string {
   return `
     <li class="app-row">
       <div class="app-main">
         <strong>${escapeHtml(application.name)}</strong>
-        <b>${escapeHtml(application.impactLabel)}</b>
+        <b>${escapeHtml(application.careLabel)}</b>
         <span>${escapeHtml(application.detail)}</span>
       </div>
       <div class="app-care">
-        <span>Suggested Care</span>
-        <strong>${escapeHtml(application.careLabel)}</strong>
+        <span>Why it matters</span>
+        <strong>${escapeHtml(application.impactLabel)}</strong>
         <p>${escapeHtml(application.careDetail)}</p>
-        ${pulseCopy}
-      </div>
-      <div class="app-metrics">
-        <span>Memory</span>
-        <strong>${escapeHtml(application.memoryDisplay)}</strong>
+        <details class="app-details">
+          <summary>Details</summary>
+          <span>${escapeHtml(application.memoryDisplay)} observed locally</span>
+        </details>
       </div>
     </li>
   `;
@@ -254,7 +218,7 @@ function renderQuickCheckin(pulse: TodayPulse, refreshing = false): void {
           <span aria-hidden="true">&rsaquo;</span>
         </button>
 
-        <p class="quick-footnote">${pulse.flowConfidence}% confidence. Local signals only.</p>
+        <p class="quick-footnote">Local check only. Nothing changes on your Mac.</p>
       </section>
     </main>
   `;
@@ -270,13 +234,12 @@ function renderQuickCheckin(pulse: TodayPulse, refreshing = false): void {
 }
 
 function renderToday(pulse: TodayPulse, refreshing = false): void {
-  const projectedPulse = expectedPulseLabel(pulse.systemScore, pulse.expectedImprovement);
   const applications = pulse.topApplications.length
-    ? pulse.topApplications.map((application) => appRow(application, pulse.systemScore)).join("")
-    : `<li class="app-row empty-row"><div class="app-main"><strong>No heavy applications</strong><span>Nothing is standing out right now.</span></div><div class="app-care"><span>Suggested Care</span><strong>No care needed</strong><p>Nothing is likely to interrupt your momentum.</p><em>Pulse steady</em></div></li>`;
+    ? pulse.topApplications.map((application) => appRow(application)).join("")
+    : `<li class="app-row empty-row"><div class="app-main"><strong>No action needed</strong><span>No application is standing out right now.</span></div><div class="app-care"><span>Why it matters</span><strong>Your apps are not competing with your work.</strong><p>Nothing is likely to interrupt your momentum.</p></div></li>`;
   const domainCards = [
-    domainCard("Momentum", pulse.momentumHealth),
-    pulse.browserHealth ? domainCard("Browser Health", pulse.browserHealth) : "",
+    domainCard("Work", pulse.momentumHealth),
+    pulse.browserHealth ? domainCard("Browser", pulse.browserHealth) : "",
     domainCard("Experience", pulse.experienceHealth),
     domainCard("Applications", pulse.applicationHealth),
     domainCard("Memory", pulse.memoryHealth),
@@ -293,8 +256,8 @@ function renderToday(pulse: TodayPulse, refreshing = false): void {
         </div>
         <div>
           <p class="eyebrow">Today</p>
-          <h1>${greeting()}</h1>
-          <p class="topbar-subtitle">${experienceLine(pulse.healthState)}</p>
+          <h1>${todayHeading()}</h1>
+          <p class="topbar-subtitle">Diagnosis and lowest-disruption care.</p>
         </div>
         <div class="topbar-actions">
           <span class="platform">${pulse.platform}</span>
@@ -307,17 +270,16 @@ function renderToday(pulse: TodayPulse, refreshing = false): void {
         <div class="hero-score">
           <span class="heart large-heart" aria-hidden="true">&hearts;</span>
           <strong>${pulse.systemScore}</strong>
-          <span>${healthText(pulse.healthState)}</span>
+          <span>${scoreInterpretation(pulse.systemScore)}</span>
         </div>
         <div class="hero-copy">
-          <p class="eyebrow">Momentum</p>
+          <p class="eyebrow">Can I keep working?</p>
           <h2>${scoreFeeling(pulse.healthState)}</h2>
           <p class="primary-recommendation">${escapeHtml(pulse.primaryRecommendation)}</p>
           <p>${escapeHtml(pulse.primaryExplanation)}</p>
           <div class="hero-facts">
-            <span><b>Flow remaining</b> ${escapeHtml(pulse.flowRemainingLabel)}</span>
-            <span><b>Expected Pulse</b> ${projectedPulse}</span>
-            <span><b>${pulse.confidence}%</b> confidence</span>
+            <span><b>Estimated uninterrupted work time</b> ${escapeHtml(pulse.flowRemainingLabel)}</span>
+            <span><b>Decision</b> ${scoreInterpretation(pulse.systemScore)}</span>
           </div>
         </div>
       </section>
@@ -328,8 +290,8 @@ function renderToday(pulse: TodayPulse, refreshing = false): void {
 
       <section class="card section-card">
         <div class="card-heading">
-          <span>Applications</span>
-          <b>PulseCore context</b>
+          <span>Care opportunities</span>
+          <b>Lowest disruption first</b>
         </div>
         <ul class="app-list">
           ${applications}
@@ -358,8 +320,8 @@ function renderLoading(): void {
     <div class="shell loading-shell">
       <section class="card loading-card">
         <span class="heart large-heart" aria-hidden="true">&hearts;</span>
-        <h1>Learning about your computer.</h1>
-        <p>System Pulse is reading local system signals and asking PulseCore what matters.</p>
+        <h1>Checking whether you can keep working.</h1>
+        <p>System Pulse is reading local signals and deciding what matters.</p>
       </section>
     </div>
   `;
