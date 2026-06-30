@@ -110,11 +110,27 @@ function formatCollectedAt(value: string): string {
   return value;
 }
 
-function appRow(application: ApplicationImpact): string {
-  const improvement =
-    application.careEstimatedImprovement === "+0"
-      ? ""
-      : `<em>Estimated improvement ${escapeHtml(application.careEstimatedImprovement)}</em>`;
+function parseImprovement(value: string): number {
+  const parsed = Number(value.replace("+", ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function expectedPulse(currentScore: number, improvement: string): number {
+  return Math.min(100, currentScore + parseImprovement(improvement));
+}
+
+function expectedPulseLabel(currentScore: number, improvement: string): string {
+  const pulse = expectedPulse(currentScore, improvement);
+  return parseImprovement(improvement) > 0 ? `${pulse} after care` : `${pulse} now`;
+}
+
+function appRow(application: ApplicationImpact, currentScore: number): string {
+  const improvement = parseImprovement(application.careEstimatedImprovement);
+  const expectedPulse = Math.min(100, currentScore + improvement);
+  const pulseCopy =
+    improvement > 0
+      ? `<em>Expected Pulse ${expectedPulse} after care</em>`
+      : `<em>Pulse steady</em>`;
 
   return `
     <li class="app-row">
@@ -124,10 +140,10 @@ function appRow(application: ApplicationImpact): string {
         <span>${escapeHtml(application.detail)}</span>
       </div>
       <div class="app-care">
-        <span>Care</span>
+        <span>Suggested Care</span>
         <strong>${escapeHtml(application.careLabel)}</strong>
         <p>${escapeHtml(application.careDetail)}</p>
-        ${improvement}
+        ${pulseCopy}
       </div>
       <div class="app-metrics">
         <span>Memory</span>
@@ -155,16 +171,17 @@ function domainCard(title: string, domain: DomainHealth): string {
 }
 
 function renderToday(pulse: TodayPulse, refreshing = false): void {
+  const projectedPulse = expectedPulseLabel(pulse.systemScore, pulse.expectedImprovement);
   const applications = pulse.topApplications.length
-    ? pulse.topApplications.map(appRow).join("")
-    : `<li class="app-row empty-row"><div class="app-main"><strong>No heavy applications</strong><span>Nothing is standing out right now.</span></div><div class="app-care"><span>Care</span><strong>No care needed</strong><p>Nothing is likely to interrupt your momentum.</p></div></li>`;
+    ? pulse.topApplications.map((application) => appRow(application, pulse.systemScore)).join("")
+    : `<li class="app-row empty-row"><div class="app-main"><strong>No heavy applications</strong><span>Nothing is standing out right now.</span></div><div class="app-care"><span>Suggested Care</span><strong>No care needed</strong><p>Nothing is likely to interrupt your momentum.</p><em>Pulse steady</em></div></li>`;
   const domainCards = [
-    domainCard("Memory", pulse.memoryHealth),
-    domainCard("Storage", pulse.storageHealth),
+    domainCard("Momentum", pulse.momentumHealth),
     pulse.browserHealth ? domainCard("Browser Health", pulse.browserHealth) : "",
     domainCard("Experience", pulse.experienceHealth),
     domainCard("Applications", pulse.applicationHealth),
-    domainCard("Momentum", pulse.momentumHealth),
+    domainCard("Memory", pulse.memoryHealth),
+    domainCard("Storage", pulse.storageHealth),
   ].join("");
   const refreshLabel = refreshing ? "Refreshing..." : "Refresh";
 
@@ -198,7 +215,7 @@ function renderToday(pulse: TodayPulse, refreshing = false): void {
           <p class="primary-recommendation">${escapeHtml(pulse.primaryRecommendation)}</p>
           <p>${escapeHtml(pulse.primaryExplanation)}</p>
           <div class="hero-facts">
-            <span><b>${escapeHtml(pulse.expectedImprovement)}</b> expected improvement</span>
+            <span><b>Expected Pulse</b> ${projectedPulse}</span>
             <span><b>${pulse.confidence}%</b> confidence</span>
           </div>
         </div>

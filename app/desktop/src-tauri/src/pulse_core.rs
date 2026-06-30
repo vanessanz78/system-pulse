@@ -346,15 +346,15 @@ fn browser_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
         let headline = if score >= 90 {
             "Your browser activity looks steady."
         } else if score >= 70 {
-            "Browser activity may be affecting responsiveness."
+            "Your browser session may be adding a little weight to today's experience."
         } else {
-            "Browser activity is likely affecting responsiveness."
+            "Your browser session is likely affecting today's experience."
         };
         let detail = if score >= 90 {
             "Long browser sessions can gradually slow computers. Nothing unusual is showing in this check-in.".to_string()
         } else if score >= 70 {
             format!(
-                "{} may be adding some weight to the current experience.",
+                "{} may be adding some weight to today's experience.",
                 browser.name
             )
         } else {
@@ -429,7 +429,7 @@ fn application_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
     let detail = if let Some(application) = top_application {
         if score >= 90 {
             format!(
-                "{} is using the most memory, but it does not look disruptive right now.",
+                "{} is currently the largest application on your Mac, but it does not look disruptive right now.",
                 application.name
             )
         } else {
@@ -548,19 +548,30 @@ fn application_impacts(snapshot: &SystemSnapshot) -> Vec<ApplicationImpact> {
         .map(|(index, application)| {
             let app_ratio = ratio(application.memory_bytes, snapshot.memory.total_bytes);
             let is_browser = is_observed_browser(snapshot, &application.name);
+            let is_chrome = application.name.to_lowercase().contains("chrome");
+            let is_codex = application.name.to_lowercase().contains("codex");
             let impact_label = if index == 0 {
-                "Using the most memory right now"
+                format!(
+                    "{} is currently the largest application on your Mac.",
+                    application.name
+                )
+            } else if is_chrome {
+                "Chrome is behaving normally for now.".to_string()
             } else if app_ratio >= 0.08 {
-                "Worth keeping an eye on"
+                format!("{} is worth reviewing if things start to feel heavy.", application.name)
             } else {
-                "Looks steady"
+                format!("{} looks steady.", application.name)
             };
-            let detail = if index == 0 && is_browser {
-                "Browser tabs, helpers and renderer processes are grouped here.".to_string()
+            let detail = if index == 0 && is_codex {
+                "This is expected while you are actively building software.".to_string()
+            } else if index == 0 && is_browser {
+                "Browser tabs, helpers and background processes are grouped here.".to_string()
             } else if index == 0 {
                 "This can be normal while it is active in your current workload.".to_string()
+            } else if is_chrome {
+                "If your Mac starts feeling sluggish, this is the first application worth reviewing.".to_string()
             } else if is_browser {
-                "Includes browser helper and renderer processes.".to_string()
+                "Includes browser helper and background processes.".to_string()
             } else if application.name == "WindowServer" {
                 "Supports desktop responsiveness and window movement.".to_string()
             } else if app_ratio >= 0.08 {
@@ -572,7 +583,7 @@ fn application_impacts(snapshot: &SystemSnapshot) -> Vec<ApplicationImpact> {
                 if index == 0 && is_browser {
                     (
                         format!("Restart {} when you have a natural break", application.name),
-                        "Best if browsing starts to feel heavy.".to_string(),
+                        "Best if today's experience starts to feel heavy.".to_string(),
                         "+6".to_string(),
                     )
                 } else if index == 0 && app_ratio >= 0.15 {
