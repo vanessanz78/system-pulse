@@ -285,7 +285,7 @@ p {
 }
 
 h1 {
-  font-size: clamp(1.65rem, 3.6vw, 2.45rem);
+  font-size: 2.35rem;
   font-weight: 760;
   letter-spacing: 0;
 }
@@ -369,19 +369,141 @@ p {
   color: var(--text);
 }
 
-.decision-grid {
+.decision-grid,
+.decision-summary {
   display: grid;
   gap: 1rem;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .why-card,
 .action-card,
 .care-card,
-.detail-card {
+.detail-card,
+.next-step-card,
+.decision-card {
   display: grid;
   gap: 0.9rem;
   padding: 1.25rem;
+}
+
+.next-step-card {
+  grid-column: span 2;
+}
+
+.card-heading,
+.section-heading {
+  align-items: start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.card-heading span,
+.section-heading span {
+  color: var(--muted);
+}
+
+.card-heading b,
+.section-heading span {
+  color: var(--healthy);
+  font-size: 0.9rem;
+  text-align: right;
+}
+
+.decision-card h3 {
+  font-size: 1.1rem;
+  line-height: 1.18;
+}
+
+.opportunities-card {
+  display: grid;
+  gap: 1rem;
+}
+
+.opportunity-list {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.opportunity-card {
+  background:
+    linear-gradient(135deg, rgba(120, 212, 90, 0.07), transparent 66%),
+    var(--panel);
+  border: 1px solid rgba(221, 255, 238, 0.14);
+  border-radius: 8px;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
+  padding: 1.15rem;
+}
+
+.opportunity-main,
+.opportunity-decision,
+.care-actions {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.opportunity-main h3 {
+  font-size: 1.25rem;
+}
+
+.opportunity-main strong {
+  color: var(--text);
+  font-size: 1.02rem;
+}
+
+.opportunity-decision {
+  align-content: start;
+}
+
+.care-actions {
+  grid-template-columns: 1fr;
+}
+
+.primary-care-button {
+  background: rgba(120, 212, 90, 0.18);
+  border-color: rgba(120, 212, 90, 0.58);
+  font-weight: 760;
+}
+
+.secondary-care-button,
+.quiet-care-button {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--line);
+  color: var(--muted);
+}
+
+.quiet-care-button {
+  padding: 0.62rem 0.8rem;
+}
+
+.care-message,
+.reassurance-copy {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 0.9rem;
+}
+
+.protected-work {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.quiet-decision {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.85rem;
+}
+
+.quiet-decision span {
+  color: var(--muted);
+}
+
+.quiet-decision strong {
+  color: var(--text);
 }
 
 .care-card {
@@ -407,6 +529,10 @@ p {
 .time-gain strong {
   color: var(--healthy);
   font-size: 1.5rem;
+}
+
+.time-gain.compact strong {
+  font-size: 1.25rem;
 }
 
 .quiet-details,
@@ -452,8 +578,18 @@ p {
 
   .topbar,
   .hero,
-  .decision-grid {
+  .decision-grid,
+  .decision-summary,
+  .opportunity-card {
     grid-template-columns: 1fr;
+  }
+
+  h1 {
+    font-size: 1.95rem;
+  }
+
+  .next-step-card {
+    grid-column: auto;
   }
 }
 
