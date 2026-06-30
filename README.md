@@ -32,6 +32,7 @@ Durable handoff notes:
 - [Source Document Reading Notes](docs/19-Source-Document-Reading-Notes.md)
 - [Founding Engineer Readiness Note](docs/18-Founding-Engineer-Readiness.md)
 - [The Three Layers of PulseCore](docs/22-PulseCore-Layers.md)
+- [Desktop Build And Download](docs/23-Desktop-Build-And-Download.md)
 
 ## Repository Structure
 
@@ -72,6 +73,8 @@ The founding source documents specify:
 - macOS and Windows first, Linux later once the core architecture is stable.
 
 PulseCore follows a three-layer model: Observation, Reasoning, and Experience. Collectors observe, PulseCore reasons, and the product experience should protect the user's focus and perceived performance.
+
+Desktop installers are built through GitHub Actions, not Replit. Replit is reserved for the future sales website and lightweight repository checks.
 
 ## Run The App On macOS
 
