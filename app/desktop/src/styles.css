@@ -81,10 +81,12 @@ button:disabled {
 
 .heart {
   align-items: center;
-  background: rgba(255, 255, 255, 0.06);
-  border: 2px solid var(--healthy);
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid var(--healthy);
   border-radius: 999px;
-  box-shadow: 0 0 0 10px var(--glow);
+  box-shadow:
+    0 0 0 5px var(--glow),
+    0 0 30px var(--glow);
   color: #ffffff;
   display: inline-flex;
   font-size: 1.3rem;
@@ -95,9 +97,9 @@ button:disabled {
 }
 
 .large-heart {
-  font-size: 3.8rem;
-  height: 7.3rem;
-  width: 7.3rem;
+  font-size: 2.9rem;
+  height: 5.6rem;
+  width: 5.6rem;
 }
 
 .score {
@@ -121,7 +123,7 @@ p {
 }
 
 h1 {
-  font-size: clamp(1.7rem, 4vw, 2.7rem);
+  font-size: clamp(1.65rem, 3.6vw, 2.45rem);
   font-weight: 760;
   letter-spacing: 0;
 }
@@ -152,8 +154,8 @@ p {
   align-items: center;
   display: grid;
   gap: 2rem;
-  grid-template-columns: 15rem 1fr;
-  padding: 1.5rem;
+  grid-template-columns: 13rem 1fr;
+  padding: 1.65rem;
 }
 
 .hero-score {
@@ -164,13 +166,20 @@ p {
 }
 
 .hero-score strong {
-  font-size: 3.2rem;
+  font-size: 4.45rem;
   line-height: 1;
 }
 
 .hero-score span:last-child {
   color: var(--muted);
   font-weight: 700;
+}
+
+.hero-score p,
+.topbar-subtitle {
+  color: var(--muted);
+  font-size: 0.92rem;
+  text-align: center;
 }
 
 .hero-copy {
@@ -185,8 +194,7 @@ p {
   margin-top: 0.35rem;
 }
 
-.hero-facts span,
-.metric-pill {
+.hero-facts span {
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -212,6 +220,21 @@ p {
   display: grid;
   gap: 0.8rem;
   padding: 1.1rem;
+}
+
+.metric-details {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.metric-details summary {
+  cursor: pointer;
+  display: inline-flex;
+}
+
+.metric-details span {
+  display: block;
+  padding-top: 0.45rem;
 }
 
 .card-heading {
@@ -250,6 +273,12 @@ p {
 .app-row div:first-child {
   display: grid;
   gap: 0.25rem;
+}
+
+.app-row div:first-child b {
+  color: var(--text);
+  font-size: 0.92rem;
+  font-weight: 700;
 }
 
 .app-row span {
@@ -317,11 +346,15 @@ footer {
 @keyframes breathe {
   0%,
   100% {
-    box-shadow: 0 0 0 7px var(--glow);
+    box-shadow:
+      0 0 0 4px var(--glow),
+      0 0 28px var(--glow);
     transform: scale(1);
   }
   50% {
-    box-shadow: 0 0 0 13px var(--glow);
-    transform: scale(1.015);
+    box-shadow:
+      0 0 0 8px var(--glow),
+      0 0 42px var(--glow);
+    transform: scale(1.012);
   }
 }
