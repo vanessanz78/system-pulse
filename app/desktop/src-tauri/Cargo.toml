@@ -1,6 +1,6 @@
 [package]
 name = "system-pulse-desktop"
-version = "0.1.0"
+version = "0.1.1"
 description = "System Pulse desktop app"
 authors = ["vanessanz78"]
 license = "Proprietary"
