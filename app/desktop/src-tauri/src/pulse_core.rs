@@ -22,9 +22,6 @@ pub fn evaluate(snapshot: SystemSnapshot) -> TodayPulse {
     let memory_health = memory_health(&snapshot, memory_score);
     let storage_health = storage_health(&snapshot, storage_score);
     let browser_health = browser_health(&snapshot, browser_score);
-    let renderer_health = renderer_health(&snapshot, renderer_score);
-    let window_server_health = window_server_health(&snapshot, window_server_score);
-    let experience_health = experience_health(&snapshot, window_server_score);
     let application_health = application_health(&snapshot, application_score);
     let recommendation = primary_recommendation(
         &snapshot,
@@ -36,7 +33,6 @@ pub fn evaluate(snapshot: SystemSnapshot) -> TodayPulse {
         window_server_score,
         system_score,
     );
-    let momentum_health = momentum_health(system_score, &recommendation);
     let flow = flow_remaining_estimate(
         system_score,
         memory_score,
@@ -54,19 +50,13 @@ pub fn evaluate(snapshot: SystemSnapshot) -> TodayPulse {
         health_state,
         primary_explanation: recommendation.explanation,
         primary_recommendation: recommendation.text,
-        confidence: recommendation.confidence,
-        expected_improvement: recommendation.expected_improvement,
+        estimated_additional_work_label: recommendation.estimated_additional_work_label,
         flow_remaining_label: flow.label,
         flow_remaining_minutes: flow.minutes,
-        flow_confidence: flow.confidence,
         memory_health,
         storage_health,
         browser_health,
-        experience_health,
         application_health,
-        momentum_health,
-        renderer_health,
-        window_server_health,
         top_applications,
     }
 }
@@ -74,14 +64,12 @@ pub fn evaluate(snapshot: SystemSnapshot) -> TodayPulse {
 struct Recommendation {
     text: String,
     explanation: String,
-    confidence: u8,
-    expected_improvement: String,
+    estimated_additional_work_label: String,
 }
 
 struct FlowEstimate {
     label: String,
     minutes: u32,
-    confidence: u8,
 }
 
 fn weighted_score(
@@ -218,10 +206,9 @@ fn primary_recommendation(
 ) -> Recommendation {
     if system_score >= 90 {
         return Recommendation {
-            text: "Nothing needs your attention.".to_string(),
-            explanation: "Everything feels steady today. You can keep working.".to_string(),
-            confidence: 92,
-            expected_improvement: "+0".to_string(),
+            text: "No action needed right now.".to_string(),
+            explanation: "Nothing is likely to interrupt your work in this check-in.".to_string(),
+            estimated_additional_work_label: "+0 minutes".to_string(),
         };
     }
 
@@ -231,14 +218,10 @@ fn primary_recommendation(
         || renderer_score < 80
     {
         if let Some(browser) = primary_browser(snapshot) {
-            let confidence = browser_confidence(snapshot, browser);
-            let expected_improvement =
-                expected_improvement(system_score, if confidence >= 94 { 98 } else { 94 });
             return Recommendation {
-                text: format!("Restart {} when you have a natural break.", browser.name),
+                text: format!("Restart {} at your next natural break.", browser.name),
                 explanation: browser_recommendation_explanation(browser),
-                confidence,
-                expected_improvement,
+                estimated_additional_work_label: "+35 minutes".to_string(),
             };
         }
     }
@@ -248,10 +231,9 @@ fn primary_recommendation(
         && window_server_score <= storage_score
     {
         return Recommendation {
-            text: "Give your Mac a planned restart if it still feels sluggish.".to_string(),
-            explanation: "Your desktop may be carrying extra weight today. That can line up with slow screenshots, laggy window movement or Mission Control delays. Restart only when it will not interrupt your work.".to_string(),
-            confidence: 78,
-            expected_improvement: expected_improvement(system_score, 92),
+            text: "Finish this task, then restart your Mac if it still feels heavy.".to_string(),
+            explanation: "The lowest-interruption choice is to keep working now and only restart after your active work is safe.".to_string(),
+            estimated_additional_work_label: "+45 minutes".to_string(),
         };
     }
 
@@ -259,21 +241,19 @@ fn primary_recommendation(
         if let Some(application) = snapshot.applications.first() {
             if application.name == "WindowServer" {
                 return Recommendation {
-                    text: "Give your Mac a planned restart when your work is saved.".to_string(),
-                    explanation: "Desktop responsiveness is carrying extra weight today. A planned restart may help, but only after your active work is safe.".to_string(),
-                    confidence: 82,
-                    expected_improvement: expected_improvement(system_score, 92),
+                    text: "Restart your Mac when your work is saved.".to_string(),
+                    explanation: "This can help if the whole desktop starts feeling heavy, but it should wait until your work is safe.".to_string(),
+                    estimated_additional_work_label: "+45 minutes".to_string(),
                 };
             }
 
             return Recommendation {
                 text: format!("Restart {} when you are finished with it.", application.name),
                 explanation: format!(
-                    "{} is doing more of the work than your other applications right now. Restart it only when it will not interrupt what you are doing.",
+                    "{} is the least disruptive care candidate right now. Wait until it is not doing important work.",
                     application.name
                 ),
-                confidence: 88,
-                expected_improvement: "+6".to_string(),
+                estimated_additional_work_label: "+25 minutes".to_string(),
             };
         }
     }
@@ -281,16 +261,14 @@ fn primary_recommendation(
     if memory_score <= storage_score {
         Recommendation {
             text: "Close or restart the heaviest app when you are ready.".to_string(),
-            explanation: "Your Mac has less breathing room than ideal. Caring for the heaviest app would likely make the computer feel smoother.".to_string(),
-            confidence: 84,
-            expected_improvement: "+5".to_string(),
+            explanation: "This is the lowest-disruption way to buy more comfortable working time without restarting the whole Mac.".to_string(),
+            estimated_additional_work_label: "+20 minutes".to_string(),
         }
     } else {
         Recommendation {
             text: "Review storage when you have a quiet moment.".to_string(),
-            explanation: "Available storage is getting tighter. Choosing files to remove later can help protect performance without interrupting your work now.".to_string(),
-            confidence: 82,
-            expected_improvement: expected_improvement(system_score, 92),
+            explanation: "Storage does not need to interrupt you this second, but making room later can protect smoother work.".to_string(),
+            estimated_additional_work_label: "+15 minutes".to_string(),
         }
     }
 }
@@ -331,18 +309,9 @@ fn flow_remaining_estimate(
         18
     };
 
-    let confidence = if system_score >= 90 && weakest_signal >= 84 {
-        82
-    } else if system_score >= 75 && weakest_signal >= 70 {
-        74
-    } else {
-        66
-    };
-
     FlowEstimate {
         label: format_flow_remaining(minutes),
         minutes,
-        confidence,
     }
 }
 
@@ -468,42 +437,6 @@ fn browser_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
     }
 }
 
-fn experience_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
-    let label = domain_label(score);
-    let headline = if score >= 90 {
-        "Your computer feels responsive."
-    } else if score >= 70 {
-        "Responsiveness is worth watching."
-    } else {
-        "Responsiveness needs attention."
-    };
-    let detail = if score >= 90 {
-        "No noticeable delays are showing in this check-in."
-    } else if score >= 70 {
-        "Window movement, screenshots or Mission Control may feel a little heavier."
-    } else {
-        "Focused work may feel interrupted unless the pressure eases."
-    };
-    let value = snapshot
-        .window_server
-        .as_ref()
-        .map(|window_server| {
-            format!(
-                "{} memory, {:.1}% CPU",
-                format_bytes(window_server.memory_bytes),
-                window_server.cpu_percent
-            )
-        })
-        .unwrap_or_else(|| "No desktop responsiveness pressure detected".to_string());
-
-    DomainHealth {
-        label: label.to_string(),
-        headline: headline.to_string(),
-        detail: detail.to_string(),
-        value,
-    }
-}
-
 fn application_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
     let label = domain_label(score);
     let top_application = snapshot.applications.first();
@@ -542,84 +475,6 @@ fn application_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
         detail,
         value,
     }
-}
-
-fn momentum_health(system_score: u8, recommendation: &Recommendation) -> DomainHealth {
-    let label = domain_label(system_score);
-    let headline = if system_score >= 90 {
-        "You're in good shape for focused work."
-    } else if system_score >= 70 {
-        "Something may start stealing momentum."
-    } else {
-        "Momentum is at risk."
-    };
-    let detail = if system_score >= 90 {
-        "Nothing appears likely to interrupt you right now.".to_string()
-    } else {
-        recommendation.explanation.clone()
-    };
-    let value = if system_score >= 90 {
-        "No momentum risk detected".to_string()
-    } else {
-        recommendation.text.clone()
-    };
-
-    DomainHealth {
-        label: label.to_string(),
-        headline: headline.to_string(),
-        detail,
-        value,
-    }
-}
-
-fn renderer_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
-    let label = domain_label(score);
-    let headline = if score >= 90 {
-        "Browser activity looks steady."
-    } else if score >= 70 {
-        "Browser activity is worth watching."
-    } else {
-        "Browser activity may affect responsiveness."
-    };
-    let primary = snapshot
-        .renderers
-        .primary_browser
-        .as_deref()
-        .unwrap_or("The browser");
-    let detail = if snapshot.renderers.total_count == 0 {
-        "Browser activity is not standing out right now.".to_string()
-    } else {
-        format!("{primary} is carrying most of today's browser activity.")
-    };
-
-    DomainHealth {
-        label: label.to_string(),
-        headline: headline.to_string(),
-        detail,
-        value: "Browser activity observed".to_string(),
-    }
-}
-
-fn window_server_health(snapshot: &SystemSnapshot, score: u8) -> Option<DomainHealth> {
-    let window_server = snapshot.window_server.as_ref()?;
-    let headline = if score >= 90 {
-        "Desktop responsiveness looks steady."
-    } else if score >= 70 {
-        "Desktop responsiveness is worth watching."
-    } else {
-        "Desktop responsiveness needs attention."
-    };
-
-    Some(DomainHealth {
-        label: domain_label(score).to_string(),
-        headline: headline.to_string(),
-        detail: "Desktop responsiveness can line up with slow screenshots, window movement and Mission Control delays.".to_string(),
-        value: format!(
-            "{} memory, {:.1}% CPU",
-            format_bytes(window_server.memory_bytes),
-            window_server.cpu_percent
-        ),
-    })
 }
 
 fn application_impacts(snapshot: &SystemSnapshot) -> Vec<ApplicationImpact> {
@@ -662,43 +517,43 @@ fn application_impacts(snapshot: &SystemSnapshot) -> Vec<ApplicationImpact> {
             let (care_label, care_detail, care_estimated_improvement) =
                 if index == 0 && is_browser {
                     (
-                        "Recommended at your next break".to_string(),
+                        "Restart at your next break".to_string(),
                         format!(
                             "Restart {display_name} at a natural break if today's experience starts to feel heavy."
                         ),
-                        "+6".to_string(),
+                        "+35 minutes".to_string(),
                     )
                 } else if index == 0 && application.name == "WindowServer" && app_ratio >= 0.15 {
                     (
-                        "Recommended when work is saved".to_string(),
+                        "Restart when work is saved".to_string(),
                         "Restart your Mac after your active work is safe.".to_string(),
-                        "+4".to_string(),
+                        "+45 minutes".to_string(),
                     )
                 } else if index == 0 && app_ratio >= 0.15 {
                     (
-                        "Recommended when finished".to_string(),
+                        "Restart when finished".to_string(),
                         format!(
                             "Restart {display_name} after you are done with the current task."
                         ),
-                        "+4".to_string(),
+                        "+25 minutes".to_string(),
                     )
                 } else if index == 0 {
                     (
                         "No action needed".to_string(),
                         "This looks normal for what you are doing right now.".to_string(),
-                        "+0".to_string(),
+                        "+0 minutes".to_string(),
                     )
                 } else if app_ratio >= 0.08 {
                     (
-                        "Worth watching".to_string(),
+                        "Care later if needed".to_string(),
                         "Only needs care if your Mac starts to feel less responsive.".to_string(),
-                        "+2".to_string(),
+                        "+10 minutes".to_string(),
                     )
                 } else {
                     (
-                        "No care needed".to_string(),
+                        "No action needed".to_string(),
                         "Not likely to interrupt your momentum.".to_string(),
-                        "+0".to_string(),
+                        "+0 minutes".to_string(),
                     )
                 };
             ApplicationImpact {
@@ -748,17 +603,6 @@ fn display_application_name(name: &str) -> &str {
     }
 }
 
-fn browser_confidence(snapshot: &SystemSnapshot, browser: &BrowserSnapshot) -> u8 {
-    let memory_ratio = ratio(browser.memory_bytes, snapshot.memory.total_bytes);
-    if browser.renderer_count >= 28 && memory_ratio >= 0.18 {
-        96
-    } else if browser.renderer_count >= 16 || memory_ratio >= 0.12 {
-        90
-    } else {
-        84
-    }
-}
-
 fn browser_recommendation_explanation(browser: &BrowserSnapshot) -> String {
     let uptime = browser
         .uptime_seconds
@@ -771,18 +615,13 @@ fn browser_recommendation_explanation(browser: &BrowserSnapshot) -> String {
     )
 }
 
-fn expected_improvement(current_score: u8, expected_score: u8) -> String {
-    let improvement = expected_score.saturating_sub(current_score).max(1);
-    format!("+{improvement}")
-}
-
 fn domain_label(score: u8) -> &'static str {
     if score >= 90 {
-        "No action needed"
+        "OK"
     } else if score >= 70 {
-        "Worth watching"
+        "Later"
     } else {
-        "Recommended today"
+        "Care"
     }
 }
 

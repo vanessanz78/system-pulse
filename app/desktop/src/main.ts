@@ -28,13 +28,12 @@ type TodayPulse = {
   healthState: HealthState;
   primaryExplanation: string;
   primaryRecommendation: string;
+  estimatedAdditionalWorkLabel: string;
   flowRemainingLabel: string;
   flowRemainingMinutes: number;
   memoryHealth: DomainHealth;
   storageHealth: DomainHealth;
-  experienceHealth: DomainHealth;
   applicationHealth: DomainHealth;
-  momentumHealth: DomainHealth;
   browserHealth?: DomainHealth;
   topApplications: ApplicationImpact[];
 };
@@ -70,37 +69,45 @@ function escapeHtml(value: string): string {
   });
 }
 
-function scoreInterpretation(score: number): string {
-  if (score >= 95) return "Excellent";
-  if (score >= 80) return "Working well";
-  if (score >= 60) return "Worth watching";
-  if (score >= 40) return "Plan some care";
-  if (score >= 20) return "Recommended today";
-  return "Act soon";
+function canKeepWorking(state: HealthState): string {
+  if (state === "healthy") return "Yes. Keep working.";
+  if (state === "attention") return "Yes, finish this task first.";
+  return "Pause for care soon.";
 }
 
-function todayHeading(): string {
-  return `${USER_NAME}'s Today`;
-}
-
-function scoreFeeling(state: HealthState): string {
-  if (state === "healthy") return "Everything feels steady today.";
-  if (state === "attention") return "A few things are worth noticing.";
-  return "Your computer needs a calmer moment.";
-}
-
-function quickHeadline(state: HealthState): string {
-  if (state === "healthy") return "Everything is healthy.";
-  if (state === "attention") return "A little care may help soon.";
-  return "Your momentum needs care.";
-}
-
-function quickBody(state: HealthState): string {
-  if (state === "healthy") return "You can keep working. No action is needed right now.";
+function comfortLine(state: HealthState): string {
+  if (state === "healthy") return "You're still working comfortably.";
   if (state === "attention") {
-    return "You can keep working, but one thing is worth watching.";
+    return "You have enough room to keep going, but care may help at your next break.";
   }
-  return "Pause for care soon so your computer does not interrupt your work.";
+  return "Your Mac is likely to get in the way unless you take a care moment.";
+}
+
+function immediateAction(pulse: TodayPulse): string {
+  if (pulse.healthState === "healthy") return "No action needed right now.";
+  return pulse.primaryRecommendation;
+}
+
+function whyHeadline(state: HealthState): string {
+  if (state === "healthy") return "Nothing is asking for care.";
+  if (state === "attention") return "One thing may start getting in your way.";
+  return "Care is likely to help soon.";
+}
+
+function signalMark(domain: DomainHealth): string {
+  const label = domain.label.toLowerCase();
+  if (label.includes("recommended") || label.includes("care")) {
+    return "!";
+  }
+  return "✓";
+}
+
+function signalClass(domain: DomainHealth): string {
+  const label = domain.label.toLowerCase();
+  if (label.includes("recommended") || label.includes("care")) {
+    return "needs-care";
+  }
+  return "ok";
 }
 
 function formatCollectedAt(value: string): string {
@@ -115,51 +122,63 @@ function formatCollectedAt(value: string): string {
   return value;
 }
 
-function appRow(application: ApplicationImpact): string {
+function quickSignal(label: string, domain: DomainHealth): string {
   return `
-    <li class="app-row">
-      <div class="app-main">
-        <strong>${escapeHtml(application.name)}</strong>
-        <b>${escapeHtml(application.careLabel)}</b>
-        <span>${escapeHtml(application.detail)}</span>
-      </div>
-      <div class="app-care">
-        <span>Why it matters</span>
-        <strong>${escapeHtml(application.impactLabel)}</strong>
-        <p>${escapeHtml(application.careDetail)}</p>
-        <details class="app-details">
-          <summary>Details</summary>
-          <span>${escapeHtml(application.memoryDisplay)} observed locally</span>
-        </details>
-      </div>
+    <li class="${signalClass(domain)}">
+      <strong>${escapeHtml(label)}</strong>
+      <span aria-hidden="true">${signalMark(domain)}</span>
     </li>
   `;
 }
 
-function domainCard(title: string, domain: DomainHealth): string {
+function nextCareCard(pulse: TodayPulse): string {
+  const application = pulse.topApplications[0];
+  if (pulse.healthState === "healthy" || !application) {
+    return "";
+  }
+
   return `
-    <section class="card compact-card">
-      <div class="card-heading">
-        <span>${escapeHtml(title)}</span>
-        <b>${escapeHtml(domain.label)}</b>
+    <section class="card care-card">
+      <p class="eyebrow">Lowest disruption</p>
+      <h2>${escapeHtml(application.careLabel)}</h2>
+      <p>${escapeHtml(application.careDetail)}</p>
+      <div class="time-gain">
+        <span>Estimated additional uninterrupted work</span>
+        <strong>${escapeHtml(pulse.estimatedAdditionalWorkLabel)}</strong>
       </div>
-      <h3>${escapeHtml(domain.headline)}</h3>
-      <p>${escapeHtml(domain.detail)}</p>
-      <details class="metric-details">
-        <summary>Details</summary>
-        <span>${escapeHtml(domain.value)}</span>
+      <details class="quiet-details">
+        <summary>Why this app?</summary>
+        <p>${escapeHtml(application.impactLabel)}</p>
       </details>
     </section>
   `;
 }
 
-function glanceRow(label: string, domain: DomainHealth): string {
+function localDetails(pulse: TodayPulse): string {
+  const details = [
+    ["Applications", pulse.applicationHealth],
+    ["Storage", pulse.storageHealth],
+    ["Memory", pulse.memoryHealth],
+    ["Browser", pulse.browserHealth],
+  ]
+    .filter(([, domain]) => Boolean(domain))
+    .map(([label, domain]) => {
+      const typedDomain = domain as DomainHealth;
+      return `
+        <li>
+          <strong>${escapeHtml(label as string)}</strong>
+          <span>${escapeHtml(typedDomain.headline)}</span>
+          <em>${escapeHtml(typedDomain.value)}</em>
+        </li>
+      `;
+    })
+    .join("");
+
   return `
-    <li>
-      <span class="glance-dot" aria-hidden="true"></span>
-      <strong>${escapeHtml(label)}</strong>
-      <b>${escapeHtml(domain.label)}</b>
-    </li>
+    <details class="card detail-card">
+      <summary>Show local signals</summary>
+      <ul>${details}</ul>
+    </details>
   `;
 }
 
@@ -175,41 +194,39 @@ function renderCurrentView(pulse: TodayPulse, refreshing = false): void {
 function renderQuickCheckin(pulse: TodayPulse, refreshing = false): void {
   const refreshLabel = refreshing ? "Refreshing..." : "Refresh";
   const glanceRows = [
-    glanceRow("Applications", pulse.applicationHealth),
-    glanceRow("Storage", pulse.storageHealth),
-    glanceRow("Memory", pulse.memoryHealth),
-    glanceRow("Experience", pulse.experienceHealth),
+    quickSignal("Applications", pulse.applicationHealth),
+    quickSignal("Storage", pulse.storageHealth),
+    quickSignal("Memory", pulse.memoryHealth),
   ].join("");
 
   appRoot.innerHTML = `
     <main class="quick-shell" data-state="${pulse.healthState}">
       <section class="quick-card">
         <div class="quick-tools">
-          <span>System Pulse</span>
+          <span class="pulse-pill">
+            <span class="heart mini-heart" aria-hidden="true">&hearts;</span>
+            <strong>${pulse.systemScore}</strong>
+          </span>
           <button id="quick-refresh-button" class="icon-button" type="button" ${refreshing ? "disabled" : ""}>${refreshLabel}</button>
         </div>
 
-        <div class="quick-hero">
-          <div class="quick-score" aria-label="System Pulse score ${pulse.systemScore}">
-            <span class="heart quick-heart" aria-hidden="true">&hearts;</span>
-            <strong>${pulse.systemScore}</strong>
-          </div>
-          <div class="quick-summary">
-            <h1>${quickHeadline(pulse.healthState)}</h1>
-            <p>${quickBody(pulse.healthState)}</p>
-            <span>Estimated uninterrupted work time</span>
-            <b>${escapeHtml(pulse.flowRemainingLabel)}</b>
-          </div>
+        <div class="quick-answer">
+          <p class="eyebrow">Can I keep working?</p>
+          <h1>${canKeepWorking(pulse.healthState)}</h1>
+          <p>${comfortLine(pulse.healthState)}</p>
         </div>
 
-        <div class="quick-care">
-          <span>Next best step</span>
-          <strong>${escapeHtml(pulse.primaryRecommendation)}</strong>
-          <p>${escapeHtml(pulse.primaryExplanation)}</p>
+        <div class="quick-time">
+          <span>Estimated uninterrupted work time</span>
+          <strong>${escapeHtml(pulse.flowRemainingLabel)}</strong>
+        </div>
+
+        <div class="quick-now">
+          <span>Do I need to do anything?</span>
+          <strong>${escapeHtml(immediateAction(pulse))}</strong>
         </div>
 
         <div class="quick-glance">
-          <h2>At a Glance</h2>
           <ul>${glanceRows}</ul>
         </div>
 
@@ -234,18 +251,8 @@ function renderQuickCheckin(pulse: TodayPulse, refreshing = false): void {
 }
 
 function renderToday(pulse: TodayPulse, refreshing = false): void {
-  const applications = pulse.topApplications.length
-    ? pulse.topApplications.map((application) => appRow(application)).join("")
-    : `<li class="app-row empty-row"><div class="app-main"><strong>No action needed</strong><span>No application is standing out right now.</span></div><div class="app-care"><span>Why it matters</span><strong>Your apps are not competing with your work.</strong><p>Nothing is likely to interrupt your momentum.</p></div></li>`;
-  const domainCards = [
-    domainCard("Work", pulse.momentumHealth),
-    pulse.browserHealth ? domainCard("Browser", pulse.browserHealth) : "",
-    domainCard("Experience", pulse.experienceHealth),
-    domainCard("Applications", pulse.applicationHealth),
-    domainCard("Memory", pulse.memoryHealth),
-    domainCard("Storage", pulse.storageHealth),
-  ].join("");
   const refreshLabel = refreshing ? "Refreshing..." : "Refresh";
+  const careCard = nextCareCard(pulse);
 
   appRoot.innerHTML = `
     <div class="shell today-shell" data-state="${pulse.healthState}">
@@ -256,8 +263,8 @@ function renderToday(pulse: TodayPulse, refreshing = false): void {
         </div>
         <div>
           <p class="eyebrow">Today</p>
-          <h1>${todayHeading()}</h1>
-          <p class="topbar-subtitle">Diagnosis and lowest-disruption care.</p>
+          <h1>${USER_NAME}'s next decision</h1>
+          <p class="topbar-subtitle">Why, and what to do next.</p>
         </div>
         <div class="topbar-actions">
           <span class="platform">${pulse.platform}</span>
@@ -270,33 +277,38 @@ function renderToday(pulse: TodayPulse, refreshing = false): void {
         <div class="hero-score">
           <span class="heart large-heart" aria-hidden="true">&hearts;</span>
           <strong>${pulse.systemScore}</strong>
-          <span>${scoreInterpretation(pulse.systemScore)}</span>
         </div>
         <div class="hero-copy">
           <p class="eyebrow">Can I keep working?</p>
-          <h2>${scoreFeeling(pulse.healthState)}</h2>
-          <p class="primary-recommendation">${escapeHtml(pulse.primaryRecommendation)}</p>
-          <p>${escapeHtml(pulse.primaryExplanation)}</p>
+          <h2>${canKeepWorking(pulse.healthState)}</h2>
+          <p>${comfortLine(pulse.healthState)}</p>
           <div class="hero-facts">
             <span><b>Estimated uninterrupted work time</b> ${escapeHtml(pulse.flowRemainingLabel)}</span>
-            <span><b>Decision</b> ${scoreInterpretation(pulse.systemScore)}</span>
+            <span><b>Right now</b> ${escapeHtml(immediateAction(pulse))}</span>
           </div>
         </div>
       </section>
 
-      <section class="grid health-grid">
-        ${domainCards}
+      <section class="decision-grid">
+        <section class="card why-card">
+          <p class="eyebrow">Why?</p>
+          <h2>${whyHeadline(pulse.healthState)}</h2>
+          <p>${escapeHtml(pulse.primaryExplanation)}</p>
+        </section>
+
+        <section class="card action-card">
+          <p class="eyebrow">Next best step</p>
+          <h2>${escapeHtml(immediateAction(pulse))}</h2>
+          <p>${pulse.healthState === "healthy" ? "Close this and keep working." : "Choose the lowest-disruption moment. Protect active work first."}</p>
+          <div class="time-gain">
+            <span>Estimated additional uninterrupted work</span>
+            <strong>${escapeHtml(pulse.estimatedAdditionalWorkLabel)}</strong>
+          </div>
+        </section>
       </section>
 
-      <section class="card section-card">
-        <div class="card-heading">
-          <span>Care opportunities</span>
-          <b>Lowest disruption first</b>
-        </div>
-        <ul class="app-list">
-          ${applications}
-        </ul>
-      </section>
+      ${careCard}
+      ${localDetails(pulse)}
 
       <footer>
         <span>Collected locally at ${escapeHtml(formatCollectedAt(pulse.collectedAt))}</span>
@@ -321,7 +333,7 @@ function renderLoading(): void {
       <section class="card loading-card">
         <span class="heart large-heart" aria-hidden="true">&hearts;</span>
         <h1>Checking whether you can keep working.</h1>
-        <p>System Pulse is reading local signals and deciding what matters.</p>
+        <p>System Pulse is checking quietly. Nothing changes on your Mac.</p>
       </section>
     </div>
   `;
