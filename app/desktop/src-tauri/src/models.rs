@@ -113,4 +113,9 @@ pub struct ApplicationImpact {
     pub care_label: String,
     pub care_detail: String,
     pub care_estimated_improvement: String,
+    pub action_kind: String,
+    pub action_target: String,
+    pub action_label: String,
+    pub show_opportunity: bool,
+    pub protected_work: bool,
 }
