@@ -81,6 +81,9 @@ pub struct TodayPulse {
     pub memory_health: DomainHealth,
     pub storage_health: DomainHealth,
     pub browser_health: DomainHealth,
+    pub experience_health: DomainHealth,
+    pub application_health: DomainHealth,
+    pub momentum_health: DomainHealth,
     pub renderer_health: DomainHealth,
     pub window_server_health: Option<DomainHealth>,
     pub top_applications: Vec<ApplicationImpact>,
@@ -110,4 +113,7 @@ pub struct ApplicationImpact {
     pub memory_display: String,
     pub impact_label: String,
     pub detail: String,
+    pub care_label: String,
+    pub care_detail: String,
+    pub care_estimated_improvement: String,
 }
