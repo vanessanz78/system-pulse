@@ -8,6 +8,12 @@ use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, LogicalSize, Manager, Size};
 
+#[cfg(target_os = "macos")]
+use std::process::Command;
+
+#[cfg(target_os = "macos")]
+use std::{thread, time::Duration};
+
 #[tauri::command]
 fn get_today_pulse() -> Result<TodayPulse, String> {
     let snapshot = collectors::collect_system_snapshot().map_err(|error| {
@@ -51,6 +57,105 @@ fn open_today_window(app: AppHandle) -> Result<(), String> {
 fn open_quick_checkin(app: AppHandle) -> Result<(), String> {
     show_quick_checkin(&app);
     Ok(())
+}
+
+#[tauri::command]
+fn perform_care_action(action_kind: String, target: String) -> Result<String, String> {
+    platform_perform_care_action(&action_kind, &target)
+}
+
+#[cfg(target_os = "macos")]
+fn platform_perform_care_action(action_kind: &str, target: &str) -> Result<String, String> {
+    match action_kind {
+        "restartApp" => {
+            ensure_allowed_app_target(target)?;
+            quit_application(target)?;
+            thread::sleep(Duration::from_millis(1_200));
+            open_application(target)?;
+            Ok(format!("{target} has been restarted."))
+        }
+        "quitApp" => {
+            ensure_allowed_app_target(target)?;
+            quit_application(target)?;
+            Ok(format!("{target} has been asked to quit."))
+        }
+        "restartFinder" => {
+            run_status("killall", &["Finder"], "Could not restart Finder")?;
+            Ok("Finder has been restarted.".to_string())
+        }
+        "openStorageSettings" => {
+            if run_status(
+                "open",
+                &["x-apple.systempreferences:com.apple.settings.Storage"],
+                "Could not open Storage Settings",
+            )
+            .is_err()
+            {
+                run_status(
+                    "open",
+                    &["-b", "com.apple.systempreferences"],
+                    "Could not open System Settings",
+                )?;
+            }
+            Ok("Storage Settings has been opened.".to_string())
+        }
+        "openActivityMonitor" => {
+            open_application("Activity Monitor")?;
+            Ok("Activity Monitor has been opened.".to_string())
+        }
+        _ => Err("System Pulse does not know how to perform that care action yet.".to_string()),
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn platform_perform_care_action(_action_kind: &str, _target: &str) -> Result<String, String> {
+    Err("Care actions are wired for macOS in this UAT build.".to_string())
+}
+
+#[cfg(target_os = "macos")]
+fn ensure_allowed_app_target(target: &str) -> Result<(), String> {
+    match target {
+        "Google Chrome" | "Microsoft Edge" | "Firefox" | "Safari" => Ok(()),
+        _ => Err("System Pulse will not control that application yet.".to_string()),
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn quit_application(target: &str) -> Result<(), String> {
+    let script = format!("tell application \"{}\" to quit", escape_applescript(target));
+    run_status(
+        "osascript",
+        &["-e", &script],
+        &format!("Could not ask {target} to quit"),
+    )
+}
+
+#[cfg(target_os = "macos")]
+fn open_application(target: &str) -> Result<(), String> {
+    run_status(
+        "open",
+        &["-a", target],
+        &format!("Could not open {target}"),
+    )
+}
+
+#[cfg(target_os = "macos")]
+fn run_status(command: &str, args: &[&str], context: &str) -> Result<(), String> {
+    let status = Command::new(command)
+        .args(args)
+        .status()
+        .map_err(|error| format!("{context}: {error}"))?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("{context}."))
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn escape_applescript(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
 fn show_today(app: &AppHandle) {
@@ -121,7 +226,8 @@ fn main() {
             get_today_pulse,
             update_tray_score,
             open_today_window,
-            open_quick_checkin
+            open_quick_checkin,
+            perform_care_action
         ])
         .run(tauri::generate_context!())
         .expect("error while running System Pulse");
