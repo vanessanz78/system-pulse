@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import "./styles.css";
 
 type HealthState = "healthy" | "attention" | "critical";
@@ -41,6 +42,8 @@ if (!app) {
 }
 
 const appRoot = app;
+let currentPulse: TodayPulse | null = null;
+let isRefreshing = false;
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => {
@@ -65,6 +68,18 @@ function healthText(state: HealthState): string {
   if (state === "healthy") return "Healthy";
   if (state === "attention") return "Needs attention";
   return "Immediate action";
+}
+
+function formatCollectedAt(value: string): string {
+  const seconds = Number(value.replace(/^Unix\s+/, ""));
+  if (Number.isFinite(seconds) && seconds > 0) {
+    return new Date(seconds * 1000).toLocaleString([], {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+  }
+
+  return value;
 }
 
 function appRow(application: ApplicationImpact): string {
@@ -96,10 +111,18 @@ function domainCard(title: string, domain: DomainHealth): string {
   `;
 }
 
-function renderToday(pulse: TodayPulse): void {
+function renderToday(pulse: TodayPulse, refreshing = false): void {
   const applications = pulse.topApplications.length
     ? pulse.topApplications.map(appRow).join("")
     : `<li class="app-row empty-row"><div><strong>No heavy applications</strong><span>Nothing is standing out right now.</span></div></li>`;
+  const domainCards = [
+    domainCard("Memory", pulse.memoryHealth),
+    domainCard("Storage", pulse.storageHealth),
+    pulse.browserHealth ? domainCard("Browser", pulse.browserHealth) : "",
+    pulse.rendererHealth ? domainCard("Renderers", pulse.rendererHealth) : "",
+    pulse.windowServerHealth ? domainCard("Desktop", pulse.windowServerHealth) : "",
+  ].join("");
+  const refreshLabel = refreshing ? "Refreshing..." : "Refresh";
 
   appRoot.innerHTML = `
     <div class="shell" data-state="${pulse.healthState}">
@@ -112,7 +135,10 @@ function renderToday(pulse: TodayPulse): void {
           <p class="eyebrow">Today</p>
           <h1>Your system is ${healthText(pulse.healthState).toLowerCase()}.</h1>
         </div>
-        <span class="platform">${pulse.platform}</span>
+        <div class="topbar-actions">
+          <span class="platform">${pulse.platform}</span>
+          <button id="refresh-button" type="button" ${refreshing ? "disabled" : ""}>${refreshLabel}</button>
+        </div>
       </header>
 
       <section class="hero card">
@@ -132,9 +158,8 @@ function renderToday(pulse: TodayPulse): void {
         </div>
       </section>
 
-      <section class="grid">
-        ${domainCard("Memory", pulse.memoryHealth)}
-        ${domainCard("Storage", pulse.storageHealth)}
+      <section class="grid health-grid">
+        ${domainCards}
       </section>
 
       <section class="card">
@@ -148,11 +173,15 @@ function renderToday(pulse: TodayPulse): void {
       </section>
 
       <footer>
-        <span>Collected locally at ${escapeHtml(pulse.collectedAt)}</span>
+        <span>Collected locally at ${escapeHtml(formatCollectedAt(pulse.collectedAt))}</span>
         <span>No cloud. No account. No automatic optimisation.</span>
       </footer>
     </div>
   `;
+
+  document.querySelector<HTMLButtonElement>("#refresh-button")?.addEventListener("click", () => {
+    void loadToday({ keepExisting: true });
+  });
 }
 
 function renderLoading(): void {
@@ -172,23 +201,52 @@ function renderError(message: string): void {
     <div class="shell">
       <section class="card loading-card">
         <span class="heart large-heart" aria-hidden="true">&hearts;</span>
-        <h1>Something unexpected happened.</h1>
+        <h1>System Pulse could not refresh yet.</h1>
         <p>${escapeHtml(message)}</p>
+        <p class="quiet-copy">Nothing has been changed on your Mac. System Pulse only reads local health signals.</p>
         <button id="retry-button" type="button">Try again</button>
       </section>
     </div>
   `;
-  document.querySelector<HTMLButtonElement>("#retry-button")?.addEventListener("click", loadToday);
+  document.querySelector<HTMLButtonElement>("#retry-button")?.addEventListener("click", () => {
+    void loadToday();
+  });
 }
 
-async function loadToday(): Promise<void> {
-  renderLoading();
+async function updateTray(pulse: TodayPulse): Promise<void> {
   try {
-    const pulse = await invoke<TodayPulse>("get_today_pulse");
-    renderToday(pulse);
-  } catch (error) {
-    renderError(error instanceof Error ? error.message : String(error));
+    await invoke("update_tray_score", {
+      systemScore: pulse.systemScore,
+      healthState: pulse.healthState,
+    });
+  } catch {
+    // Tray title updates are best-effort; the Today screen remains authoritative.
   }
 }
 
+async function loadToday(options: { keepExisting?: boolean } = {}): Promise<void> {
+  if (isRefreshing) return;
+  isRefreshing = true;
+
+  if (options.keepExisting && currentPulse) {
+    renderToday(currentPulse, true);
+  } else {
+    renderLoading();
+  }
+
+  try {
+    const pulse = await invoke<TodayPulse>("get_today_pulse");
+    currentPulse = pulse;
+    renderToday(pulse);
+    await updateTray(pulse);
+  } catch (error) {
+    renderError(error instanceof Error ? error.message : String(error));
+  } finally {
+    isRefreshing = false;
+  }
+}
+
+void listen("system-pulse-refresh", () => {
+  void loadToday({ keepExisting: true });
+});
 void loadToday();
