@@ -64,11 +64,19 @@ jobs:
         with:
           node-version: 24
 
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+
       - name: Install JavaScript dependencies
         run: pnpm install --no-frozen-lockfile
 
       - name: Check TypeScript
         run: pnpm check
+
+      - name: Generate desktop icons
+        run: pnpm --filter @system-pulse/desktop prepare:icons
 
       - name: Build desktop app
         run: pnpm --filter @system-pulse/desktop build
