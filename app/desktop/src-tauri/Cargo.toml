@@ -13,3 +13,5 @@ tauri-build = { version = "2.5.1", features = [] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tauri = { version = "2.11.3", features = ["image-png", "tray-icon"] }
+# Temporary transitive pin for cookie 0.18.1 until time-rs releases a compatible fix.
+time = "=0.3.47"
