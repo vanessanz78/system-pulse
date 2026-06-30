@@ -81,6 +81,46 @@ jobs:
       - name: Build desktop app
         run: pnpm --filter @system-pulse/desktop build
 
+      - name: Add macOS UAT install notes
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          cat > app/desktop/src-tauri/target/release/bundle/MACOS-UAT-INSTALL-NOTES.txt <<'EOF'
+          System Pulse macOS UAT build
+          ============================
+
+          This build is for private testing only. It is ad-hoc signed, but it is
+          not Apple Developer ID signed or notarized yet.
+
+          If macOS says the app is damaged or cannot be opened:
+
+          1. Click Cancel.
+          2. Copy System Pulse.app into Applications.
+          3. Open Terminal and run:
+
+             xattr -dr com.apple.quarantine "/Applications/System Pulse.app" && open "/Applications/System Pulse.app"
+
+          This only removes the download quarantine flag from this UAT app.
+          Public releases must use Apple Developer ID signing and notarization.
+          EOF
+
+          cat > app/desktop/src-tauri/target/release/bundle/open-system-pulse-uat.command <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          app_path="/Applications/System Pulse.app"
+
+          if [ ! -d "$app_path" ]; then
+            echo "Copy System Pulse.app into Applications first, then run this helper again."
+            exit 1
+          fi
+
+          xattr -dr com.apple.quarantine "$app_path" 2>/dev/null || true
+          open "$app_path"
+          EOF
+
+          chmod +x app/desktop/src-tauri/target/release/bundle/open-system-pulse-uat.command
+
       - name: Upload desktop bundle
         uses: actions/upload-artifact@v7
         with:
