@@ -24,6 +24,8 @@ pub fn evaluate(snapshot: SystemSnapshot) -> TodayPulse {
     let browser_health = browser_health(&snapshot, browser_score);
     let renderer_health = renderer_health(&snapshot, renderer_score);
     let window_server_health = window_server_health(&snapshot, window_server_score);
+    let experience_health = experience_health(&snapshot, window_server_score);
+    let application_health = application_health(&snapshot, application_score);
     let recommendation = primary_recommendation(
         &snapshot,
         memory_score,
@@ -34,6 +36,7 @@ pub fn evaluate(snapshot: SystemSnapshot) -> TodayPulse {
         window_server_score,
         system_score,
     );
+    let momentum_health = momentum_health(system_score, &recommendation);
 
     TodayPulse {
         collected_at: snapshot.collected_at,
@@ -47,6 +50,9 @@ pub fn evaluate(snapshot: SystemSnapshot) -> TodayPulse {
         memory_health,
         storage_health,
         browser_health,
+        experience_health,
+        application_health,
+        momentum_health,
         renderer_health,
         window_server_health,
         top_applications,
@@ -194,7 +200,7 @@ fn primary_recommendation(
 ) -> Recommendation {
     if system_score >= 90 {
         return Recommendation {
-            text: "Nothing needs your attention today.".to_string(),
+            text: "Nothing needs your attention.".to_string(),
             explanation: "Everything feels steady today. You can get on with your work.".to_string(),
             confidence: 92,
             expected_improvement: "+0".to_string(),
@@ -224,8 +230,8 @@ fn primary_recommendation(
         && window_server_score <= storage_score
     {
         return Recommendation {
-            text: "Give the desktop a planned restart if it still feels sluggish.".to_string(),
-            explanation: "WindowServer is using more resources than usual. That can line up with slow screenshots, laggy window movement or Mission Control delays. Restart only when it will not interrupt your work.".to_string(),
+            text: "Give your Mac a planned restart if it still feels sluggish.".to_string(),
+            explanation: "The experience layer is working harder than usual. That can line up with slow screenshots, laggy window movement or Mission Control delays. Restart only when it will not interrupt your work.".to_string(),
             confidence: 78,
             expected_improvement: expected_improvement(system_score, 92),
         };
@@ -338,14 +344,14 @@ fn browser_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
     let label = domain_label(score);
     if let Some(browser) = primary_browser(snapshot) {
         let headline = if score >= 90 {
-            "Browser activity looks steady."
+            "Your browser activity looks steady."
         } else if score >= 70 {
             "Browser activity may be affecting responsiveness."
         } else {
             "Browser activity is likely affecting responsiveness."
         };
         let detail = if score >= 90 {
-            "Browser activity is not getting in your way right now.".to_string()
+            "Long browser sessions can gradually slow computers. Nothing unusual is showing in this check-in.".to_string()
         } else if score >= 70 {
             format!(
                 "{} may be adding some weight to the current experience.",
@@ -371,6 +377,113 @@ fn browser_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
             detail: "Browser activity is not standing out right now.".to_string(),
             value: "No browser pressure".to_string(),
         }
+    }
+}
+
+fn experience_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
+    let label = domain_label(score);
+    let headline = if score >= 90 {
+        "Your computer feels responsive."
+    } else if score >= 70 {
+        "Responsiveness is working harder than usual."
+    } else {
+        "Responsiveness needs attention."
+    };
+    let detail = if score >= 90 {
+        "No noticeable delays are showing in this check-in."
+    } else if score >= 70 {
+        "Window movement, screenshots or Mission Control may feel a little heavier."
+    } else {
+        "The experience layer is under enough pressure that focused work may feel interrupted."
+    };
+    let value = snapshot
+        .window_server
+        .as_ref()
+        .map(|window_server| {
+            format!(
+                "{} memory, {:.1}% CPU",
+                format_bytes(window_server.memory_bytes),
+                window_server.cpu_percent
+            )
+        })
+        .unwrap_or_else(|| "No desktop responsiveness pressure detected".to_string());
+
+    DomainHealth {
+        label: label.to_string(),
+        headline: headline.to_string(),
+        detail: detail.to_string(),
+        value,
+    }
+}
+
+fn application_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
+    let label = domain_label(score);
+    let top_application = snapshot.applications.first();
+    let headline = if score >= 90 {
+        "Applications look steady."
+    } else if score >= 70 {
+        "One application is worth watching."
+    } else {
+        "An application may be stealing momentum."
+    };
+    let detail = if let Some(application) = top_application {
+        if score >= 90 {
+            format!(
+                "{} is using the most memory, but it does not look disruptive right now.",
+                application.name
+            )
+        } else {
+            format!(
+                "{} is the main application to care about if your Mac starts feeling heavy.",
+                application.name
+            )
+        }
+    } else {
+        "No application is standing out right now.".to_string()
+    };
+    let value = top_application
+        .map(|application| {
+            format!(
+                "{} is using {}",
+                application.name,
+                format_bytes(application.memory_bytes)
+            )
+        })
+        .unwrap_or_else(|| "No standout application".to_string());
+
+    DomainHealth {
+        label: label.to_string(),
+        headline: headline.to_string(),
+        detail,
+        value,
+    }
+}
+
+fn momentum_health(system_score: u8, recommendation: &Recommendation) -> DomainHealth {
+    let label = domain_label(system_score);
+    let headline = if system_score >= 90 {
+        "You're in good shape for focused work."
+    } else if system_score >= 70 {
+        "Something may start stealing momentum."
+    } else {
+        "Momentum is at risk."
+    };
+    let detail = if system_score >= 90 {
+        "Nothing appears likely to interrupt you right now.".to_string()
+    } else {
+        recommendation.explanation.clone()
+    };
+    let value = if system_score >= 90 {
+        "No momentum risk detected".to_string()
+    } else {
+        recommendation.text.clone()
+    };
+
+    DomainHealth {
+        label: label.to_string(),
+        headline: headline.to_string(),
+        detail,
+        value,
     }
 }
 
@@ -434,6 +547,7 @@ fn application_impacts(snapshot: &SystemSnapshot) -> Vec<ApplicationImpact> {
         .enumerate()
         .map(|(index, application)| {
             let app_ratio = ratio(application.memory_bytes, snapshot.memory.total_bytes);
+            let is_browser = is_observed_browser(snapshot, &application.name);
             let impact_label = if index == 0 {
                 "Using the most memory right now"
             } else if app_ratio >= 0.08 {
@@ -441,11 +555,11 @@ fn application_impacts(snapshot: &SystemSnapshot) -> Vec<ApplicationImpact> {
             } else {
                 "Looks steady"
             };
-            let detail = if index == 0 && is_observed_browser(snapshot, &application.name) {
+            let detail = if index == 0 && is_browser {
                 "Browser tabs, helpers and renderer processes are grouped here.".to_string()
             } else if index == 0 {
                 "This can be normal while it is active in your current workload.".to_string()
-            } else if is_observed_browser(snapshot, &application.name) {
+            } else if is_browser {
                 "Includes browser helper and renderer processes.".to_string()
             } else if application.name == "WindowServer" {
                 "Supports desktop responsiveness and window movement.".to_string()
@@ -454,11 +568,46 @@ fn application_impacts(snapshot: &SystemSnapshot) -> Vec<ApplicationImpact> {
             } else {
                 "Not standing out in the current check-in.".to_string()
             };
+            let (care_label, care_detail, care_estimated_improvement) =
+                if index == 0 && is_browser {
+                    (
+                        format!("Restart {} when you have a natural break", application.name),
+                        "Best if browsing starts to feel heavy.".to_string(),
+                        "+6".to_string(),
+                    )
+                } else if index == 0 && app_ratio >= 0.15 {
+                    (
+                        format!("Restart {} when you are finished with it", application.name),
+                        "This may recover memory without interrupting your work.".to_string(),
+                        "+4".to_string(),
+                    )
+                } else if index == 0 {
+                    (
+                        "Keep working".to_string(),
+                        "This looks normal for what you are doing right now.".to_string(),
+                        "+0".to_string(),
+                    )
+                } else if app_ratio >= 0.08 {
+                    (
+                        "Review later".to_string(),
+                        "Only needs care if your Mac starts to feel less responsive.".to_string(),
+                        "+2".to_string(),
+                    )
+                } else {
+                    (
+                        "No care needed".to_string(),
+                        "Not likely to interrupt your momentum.".to_string(),
+                        "+0".to_string(),
+                    )
+                };
             ApplicationImpact {
                 name: application.name.clone(),
                 memory_display: format_bytes(application.memory_bytes),
                 impact_label: impact_label.to_string(),
                 detail,
+                care_label,
+                care_detail,
+                care_estimated_improvement,
             }
         })
         .collect()
@@ -508,7 +657,7 @@ fn browser_recommendation_explanation(browser: &BrowserSnapshot) -> String {
         .map(|duration| format!(" It has been running for {duration}."))
         .unwrap_or_default();
     format!(
-        "{} appears to be the largest contributor to your computer's current resource usage. Most of this comes from browser renderer processes that can accumulate during long browsing sessions.{} Restarting {} would likely improve responsiveness.",
+        "{} appears to be the largest contributor to your computer's current resource usage. Most of this comes from browser background processes that can accumulate during long browsing sessions.{} Restarting {} would likely improve responsiveness.",
         browser.name, uptime, browser.name
     )
 }
