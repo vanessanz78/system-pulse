@@ -52,7 +52,7 @@ if (!app) {
 }
 
 const appRoot = app;
-const APP_VERSION = "0.1.5";
+const APP_VERSION = "0.1.6";
 const AUTO_REFRESH_MS = 60_000;
 let currentPulse: TodayPulse | null = null;
 let isRefreshing = false;
@@ -132,31 +132,10 @@ function comfortLine(state: HealthState): string {
   return "Your Mac is likely to get in the way unless you take a care moment.";
 }
 
-function immediateAction(pulse: TodayPulse): string {
-  if (pulse.healthState === "healthy") return "No action needed right now.";
-  return pulse.primaryRecommendation;
-}
-
 function whyHeadline(state: HealthState): string {
   if (state === "healthy") return "Nothing is asking for care.";
   if (state === "attention") return "One thing may start getting in your way.";
   return "Care is likely to help soon.";
-}
-
-function signalMark(domain: DomainHealth): string {
-  const label = domain.label.toLowerCase();
-  if (label.includes("recommended") || label.includes("care")) {
-    return "!";
-  }
-  return "✓";
-}
-
-function signalClass(domain: DomainHealth): string {
-  const label = domain.label.toLowerCase();
-  if (label.includes("recommended") || label.includes("care")) {
-    return "needs-care";
-  }
-  return "ok";
 }
 
 function formatCollectedAt(value: string): string {
@@ -169,15 +148,6 @@ function formatCollectedAt(value: string): string {
   }
 
   return value;
-}
-
-function quickSignal(label: string, domain: DomainHealth): string {
-  return `
-    <li class="${signalClass(domain)}">
-      <strong>${escapeHtml(label)}</strong>
-      <span aria-hidden="true">${signalMark(domain)}</span>
-    </li>
-  `;
 }
 
 function careMessageHtml(): string {
@@ -203,6 +173,21 @@ function protectedWorkNotes(pulse: TodayPulse): ApplicationImpact[] {
   return pulse.topApplications
     .filter((application) => application.protectedWork)
     .slice(0, 2);
+}
+
+function immediateAction(pulse: TodayPulse): string {
+  if (pulse.healthState === "healthy") return "No action needed right now.";
+  return pulse.primaryRecommendation;
+}
+
+function quickRecommendedAction(pulse: TodayPulse): string {
+  if (pulse.healthState === "healthy") return "";
+  return `
+    <div class="quick-now">
+      <span>Recommended action</span>
+      <strong>${escapeHtml(pulse.primaryRecommendation)}</strong>
+    </div>
+  `;
 }
 
 function opportunityButtons(application: ApplicationImpact): string {
@@ -364,6 +349,11 @@ function decisionLabel(domain: DomainHealth): string {
   return "Best reviewed at your next break";
 }
 
+function shouldSurfaceDomain(domain: DomainHealth): boolean {
+  const label = domain.label.toLowerCase();
+  return label !== "ok" && label !== "healthy";
+}
+
 function statusClass(label: string): string {
   const lower = label.toLowerCase();
   if (lower.includes("recommended") || lower.includes("care")) return "needs-care";
@@ -371,9 +361,20 @@ function statusClass(label: string): string {
   return "ok";
 }
 
-function statusCard(label: string, status: string, headline: string, detail: string, value = ""): string {
+function statusCard(
+  label: string,
+  status: string,
+  headline: string,
+  detail: string,
+  value = "",
+  extraClass = "",
+): string {
+  const className = ["card", "status-card", statusClass(status), extraClass]
+    .filter(Boolean)
+    .join(" ");
+
   return `
-    <section class="card status-card ${statusClass(status)}">
+    <section class="${className}">
       <div class="card-heading">
         <span>${escapeHtml(label)}</span>
         <b>${escapeHtml(status)}</b>
@@ -389,15 +390,28 @@ function todayStatusGrid(pulse: TodayPulse, refreshing = false): string {
   const browser = pulse.browserHealth ?? pulse.applicationHealth;
   const nextStepStatus =
     pulse.healthState === "healthy" ? "No action needed today" : "Recommended today";
+  const supportingSignals: Array<[string, DomainHealth]> = [
+    ["Browser", browser],
+    ["Applications", pulse.applicationHealth],
+    ["Memory", pulse.memoryHealth],
+    ["Storage", pulse.storageHealth],
+  ];
+  const surfacedSignals = supportingSignals
+    .filter(([, domain]) => shouldSurfaceDomain(domain))
+    .map(([label, domain]) =>
+      statusCard(label, decisionLabel(domain), domain.headline, domain.detail, domain.value),
+    )
+    .join("");
 
   return `
-    <section class="today-status-grid" aria-label="Today at a glance">
+    <section class="today-status-grid" aria-label="Today decisions">
       ${statusCard(
         "Flow",
         "Live",
         `${pulse.flowRemainingLabel} uninterrupted work time`,
         liveStatusLine(pulse, refreshing),
         `v${APP_VERSION}`,
+        "primary-decision-card",
       )}
       ${statusCard(
         "Next best step",
@@ -405,35 +419,9 @@ function todayStatusGrid(pulse: TodayPulse, refreshing = false): string {
         immediateAction(pulse),
         pulse.primaryExplanation,
         pulse.estimatedAdditionalWorkLabel,
+        "primary-decision-card",
       )}
-      ${statusCard(
-        "Browser",
-        decisionLabel(browser),
-        browser.headline,
-        browser.detail,
-        browser.value,
-      )}
-      ${statusCard(
-        "Applications",
-        decisionLabel(pulse.applicationHealth),
-        pulse.applicationHealth.headline,
-        pulse.applicationHealth.detail,
-        pulse.applicationHealth.value,
-      )}
-      ${statusCard(
-        "Memory",
-        decisionLabel(pulse.memoryHealth),
-        pulse.memoryHealth.headline,
-        pulse.memoryHealth.detail,
-        pulse.memoryHealth.value,
-      )}
-      ${statusCard(
-        "Storage",
-        decisionLabel(pulse.storageHealth),
-        pulse.storageHealth.headline,
-        pulse.storageHealth.detail,
-        pulse.storageHealth.value,
-      )}
+      ${surfacedSignals}
     </section>
   `;
 }
@@ -447,14 +435,7 @@ function renderCurrentView(pulse: TodayPulse, refreshing = false): void {
   renderQuickCheckin(pulse, refreshing);
 }
 
-function renderQuickCheckin(pulse: TodayPulse, refreshing = false): void {
-  const refreshLabel = refreshing ? "Refreshing..." : "Refresh";
-  const glanceRows = [
-    quickSignal("Applications", pulse.applicationHealth),
-    quickSignal("Storage", pulse.storageHealth),
-    quickSignal("Memory", pulse.memoryHealth),
-  ].join("");
-
+function renderQuickCheckin(pulse: TodayPulse, _refreshing = false): void {
   appRoot.innerHTML = `
     <main class="quick-shell" data-state="${pulse.healthState}">
       <section class="quick-card">
@@ -463,7 +444,6 @@ function renderQuickCheckin(pulse: TodayPulse, refreshing = false): void {
             <span class="heart mini-heart" aria-hidden="true">&hearts;</span>
             <strong>${pulse.systemScore}</strong>
           </span>
-          <button id="quick-refresh-button" class="icon-button" type="button" ${refreshing ? "disabled" : ""}>${refreshLabel}</button>
         </div>
 
         <div class="quick-answer">
@@ -477,29 +457,16 @@ function renderQuickCheckin(pulse: TodayPulse, refreshing = false): void {
           <strong>${escapeHtml(pulse.flowRemainingLabel)}</strong>
         </div>
 
-        <div class="quick-now">
-          <span>Do I need to do anything?</span>
-          <strong>${escapeHtml(immediateAction(pulse))}</strong>
-        </div>
-
-        <div class="quick-glance">
-          <ul>${glanceRows}</ul>
-        </div>
+        ${quickRecommendedAction(pulse)}
 
         <button id="open-today-button" class="open-today-button" type="button">
           Open Today
           <span aria-hidden="true">&rsaquo;</span>
         </button>
-
-        <p class="quick-footnote">${escapeHtml(liveStatusLine(pulse, refreshing))}</p>
-        <p class="quick-footnote">Local check only. Nothing changes on your Mac. v${APP_VERSION}</p>
       </section>
     </main>
   `;
 
-  document.querySelector<HTMLButtonElement>("#quick-refresh-button")?.addEventListener("click", () => {
-    void loadToday({ keepExisting: true });
-  });
   document.querySelector<HTMLButtonElement>("#open-today-button")?.addEventListener("click", () => {
     currentView = "today";
     void invoke("open_today_window");
