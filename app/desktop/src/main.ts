@@ -214,6 +214,38 @@ function firstRecommendedApplication(pulse: TodayPulse): ApplicationImpact | und
   return visibleApplicationOpportunities(pulse)[0];
 }
 
+function statusDetail(domain: DomainHealth, healthyDetail: string): string {
+  if (domainNeedsCare(domain)) {
+    return domain.detail || domain.headline || domain.value;
+  }
+  return domain.detail || domain.value || healthyDetail;
+}
+
+function todayStatusCard(label: string, icon: string, domain: DomainHealth, healthyDetail: string): string {
+  const status = companionStatusLabel(domain);
+  const detail = statusDetail(domain, healthyDetail);
+  return `
+    <section class="today-status-card ${signalClass(domain)}" aria-label="${escapeHtml(label)} ${status}">
+      <span class="card-signal-dot" aria-hidden="true"></span>
+      <span class="status-card-icon status-icon status-icon-${escapeHtml(icon)}" aria-hidden="true"></span>
+      <h2>${escapeHtml(label)}</h2>
+      <strong>${escapeHtml(status)}</strong>
+      <p>${escapeHtml(detail)}</p>
+    </section>
+  `;
+}
+
+function todayStatusCards(pulse: TodayPulse): string {
+  return `
+    <div class="today-status-grid" aria-label="System status">
+      ${todayStatusCard("Applications", "apps", pulse.applicationHealth, "Everything looks clear.")}
+      ${todayStatusCard("Memory", "memory", pulse.memoryHealth, "Pressure is low.")}
+      ${todayStatusCard("Browser", "browser", pulse.browserHealth ?? healthyBatteryFallback(), "Everything looks clear.")}
+      ${todayStatusCard("Storage", "storage", pulse.storageHealth, "Storage looks clear.")}
+    </div>
+  `;
+}
+
 function knowledgeItems(pulse: TodayPulse): string[] {
   const browser = pulse.browserHealth;
   const items: string[] = [];
@@ -264,6 +296,36 @@ function quietCareLabel(application: ApplicationImpact): string {
   return application.actionLabel || application.careLabel;
 }
 
+function primaryCareButtonLabel(application: ApplicationImpact): string {
+  if (application.actionKind === "restartApp") return "Restart now";
+  if (application.actionKind === "quitApp") return "Quit now";
+  if (application.actionKind === "restartFinder") return "Restart now";
+  return application.actionLabel || "Start";
+}
+
+function quickSuggestion(pulse: TodayPulse): string {
+  const application = firstRecommendedApplication(pulse);
+  if (!application) return "";
+
+  return `
+    <div class="quick-suggestion-section">
+      <p>One suggestion</p>
+      <button
+        class="quick-suggestion-card"
+        type="button"
+        data-quick-detail-action="${escapeHtml(actionId(application))}"
+      >
+        <span class="suggestion-icon status-icon status-icon-browser" aria-hidden="true"></span>
+        <span>
+          <strong>${escapeHtml(quietCareLabel(application))}</strong>
+          <small>at your next break.</small>
+        </span>
+        <span aria-hidden="true">&rsaquo;</span>
+      </button>
+    </div>
+  `;
+}
+
 function quietApplicationButtons(application: ApplicationImpact, includePrimary = false): string {
   const primary = includePrimary
     ? `
@@ -301,19 +363,37 @@ function recommendedCare(pulse: TodayPulse): string {
   const application = firstRecommendedApplication(pulse);
   if (application) {
     return `
-      <section class="summary-section care-panel">
-        <p class="panel-kicker">Recommended care</p>
-        <h2>Do I need to do anything?</h2>
+      <section class="summary-section care-panel recommended-panel">
+        <p class="panel-kicker recommended-kicker"><span aria-hidden="true">&#9733;</span> Recommended</p>
         ${careMessageHtml()}
-        <button
-          class="recommendation-row"
-          type="button"
-          data-detail-action="${escapeHtml(actionId(application))}"
-        >
-          <span>${escapeHtml(quietCareLabel(application))}</span>
-          <strong>Estimated benefit ${escapeHtml(application.careEstimatedImprovement)}</strong>
-        </button>
-        ${quietApplicationButtons(application)}
+        <div class="recommended-care-layout">
+          <button
+            class="recommendation-row"
+            type="button"
+            data-detail-action="${escapeHtml(actionId(application))}"
+          >
+            <span>${escapeHtml(quietCareLabel(application))}</span>
+            <small>Estimated benefit</small>
+            <strong>${escapeHtml(application.careEstimatedImprovement)}</strong>
+            <em>Smoother experience ahead.</em>
+          </button>
+          <div class="recommended-actions">
+            <button
+              class="recommended-primary-button"
+              type="button"
+              data-care-action="${escapeHtml(actionId(application))}"
+            >
+              ${escapeHtml(primaryCareButtonLabel(application))}
+            </button>
+            <button
+              class="recommended-secondary-button"
+              type="button"
+              data-care-remind="${escapeHtml(actionId(application))}"
+            >
+              Later
+            </button>
+          </div>
+        </div>
       </section>
     `;
   }
@@ -366,17 +446,21 @@ function todaySummary(pulse: TodayPulse): string {
           <strong>${pulse.systemScore}</strong>
         </div>
 
-        <div class="summary-intro">
-          <h1>${dayGreeting()}, ${USER_NAME}.</h1>
-          <p>${focusLine(pulse.healthState)}</p>
+        <div class="today-hero-copy">
+          <div class="summary-intro">
+            <h1>${dayGreeting()}, ${USER_NAME}.</h1>
+            <p>${focusLine(pulse.healthState)}</p>
+          </div>
+
+          <section class="summary-time">
+            <span>Estimated uninterrupted work time</span>
+            <strong>${escapeHtml(pulse.flowRemainingLabel)}</strong>
+            <p>${pulse.healthState === "critical" ? "A short care moment will help." : "Plenty of time for deep work."}</p>
+          </section>
         </div>
       </section>
 
-      <section class="summary-time">
-        <span>Estimated uninterrupted work time</span>
-        <strong>${escapeHtml(pulse.flowRemainingLabel)}</strong>
-        <p>${pulse.healthState === "critical" ? "A short care moment will help." : "Plenty of time for deep work."}</p>
-      </section>
+      ${todayStatusCards(pulse)}
 
       <div class="today-panels">
         ${knowledgeList(pulse)}
@@ -455,6 +539,8 @@ function renderQuickCheckin(pulse: TodayPulse, _refreshing = false): void {
           ${companionGlance(pulse)}
         </div>
 
+        ${quickSuggestion(pulse)}
+
         <button id="open-today-button" class="open-today-button" type="button">
           Open Today
           <span aria-hidden="true">&rsaquo;</span>
@@ -466,6 +552,13 @@ function renderQuickCheckin(pulse: TodayPulse, _refreshing = false): void {
   document.querySelector<HTMLButtonElement>("#open-today-button")?.addEventListener("click", () => {
     currentView = "today";
     selectedApplicationId = null;
+    void invoke("open_today_window");
+    renderToday(pulse);
+  });
+  document.querySelector<HTMLButtonElement>("[data-quick-detail-action]")?.addEventListener("click", (event) => {
+    const button = event.currentTarget as HTMLButtonElement;
+    currentView = "today";
+    selectedApplicationId = button.dataset.quickDetailAction || null;
     void invoke("open_today_window");
     renderToday(pulse);
   });

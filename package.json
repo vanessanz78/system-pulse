@@ -1,6 +1,6 @@
 {
   "name": "system-pulse",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "private": true,
   "packageManager": "pnpm@11.7.0",
   "scripts": {

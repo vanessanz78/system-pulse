@@ -140,3 +140,24 @@ UAT for the next build:
 2. Confirm the heart/score mark is not a bland circular chart and has no pie-slice shadow.
 3. Click Open Today and confirm the expanded view feels like a calm glass window, not a plain report.
 4. Confirm only one care suggestion appears when action is useful.
+
+## Current Visual Correction
+
+Date: 1 July 2026
+
+Vanessa clarified that the Candle Pulse visual guide should be copied more literally for the expanded Today view.
+
+Current instruction:
+
+- Keep the Companion calm and glanceable.
+- Today should visually include the four small filled status cards from the right-hand Candle Pulse guide: Applications, Memory, Browser, and Storage.
+- Those cards are visual status tiles, not a return to a heavy diagnostic dashboard.
+- The recommendation panel should match the guide structure: small recommended label, one care action, estimated benefit, and quiet secondary action.
+- Prefer matching the supplied visual reference first, then refine product simplification from that baseline.
+
+UAT for the corrected build:
+
+1. Open Today and confirm the row of four small status cards appears under the score/time hero.
+2. Confirm the Browser card can show "Needs attention" while the other cards show Good.
+3. Confirm the recommendation panel visually resembles the guide, including the orange primary action and quiet Later button.
+4. Confirm the menu bar Companion includes the one-suggestion row above Open Today when there is a useful suggestion.
