@@ -101,6 +101,8 @@ pub struct DomainHealth {
     pub headline: String,
     pub detail: String,
     pub value: String,
+    pub metric_label: String,
+    pub metric_percent: String,
 }
 
 #[derive(Debug, Serialize)]

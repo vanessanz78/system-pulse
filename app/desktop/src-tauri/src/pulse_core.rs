@@ -328,23 +328,34 @@ fn format_flow_remaining(minutes: u32) -> String {
 fn memory_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
     let label = domain_label(score);
     let headline = if score >= 90 {
-        "Your Mac has room to keep working."
+        "RAM has room."
     } else if score >= 70 {
-        "Your Mac has less breathing room than usual."
+        "RAM is getting tighter."
     } else {
-        "Your Mac may need care soon."
+        "RAM needs care soon."
     };
     let detail = if score >= 90 {
-        "Your computer still has plenty of room to work comfortably."
+        "Enough working memory is available for smooth app switching."
     } else if score >= 70 {
-        "Your computer has less breathing room than ideal, so heavy apps may start to affect smoothness."
+        "Heavy apps may start to affect smoothness."
     } else {
-        "Your computer is likely to feel more constrained until memory pressure eases."
+        "Your Mac may feel constrained until memory pressure eases."
     };
     let value = format!(
-        "{} available, {} used",
+        "{} available ({}%), {} used of {} RAM",
         format_bytes(snapshot.memory.available_bytes),
-        format_bytes(snapshot.memory.used_bytes)
+        format_percent(snapshot.memory.available_bytes, snapshot.memory.total_bytes),
+        format_bytes(snapshot.memory.used_bytes),
+        format_bytes(snapshot.memory.total_bytes)
+    );
+    let metric_label = format!(
+        "{} of {} used",
+        format_bytes(snapshot.memory.used_bytes),
+        format_bytes(snapshot.memory.total_bytes)
+    );
+    let metric_percent = format!(
+        "{}%",
+        format_percent(snapshot.memory.used_bytes, snapshot.memory.total_bytes)
     );
 
     DomainHealth {
@@ -352,6 +363,8 @@ fn memory_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
         headline: headline.to_string(),
         detail: detail.to_string(),
         value,
+        metric_label,
+        metric_percent,
     }
 }
 
@@ -369,24 +382,35 @@ fn storage_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
         snapshot.storage.mount_point.as_str()
     };
     let headline = if score >= 90 {
-        "Storage has room to breathe."
+        "Disk space has room."
     } else if score >= 70 {
         "Storage is beginning to fill."
     } else {
-        "Storage needs attention soon."
+        "Disk space needs attention soon."
     };
     let detail = if score >= 90 {
-        "You have plenty of free space."
+        "There is enough free disk space for normal work."
     } else if score >= 70 {
-        "Free space is getting lower, but it does not need to interrupt you right now."
+        "Free disk space is lower than ideal."
     } else {
-        "Free space is tight enough that it may start affecting comfort and reliability."
+        "Low disk space can make updates, caches, and app work less reliable."
     };
     let value = format!(
-        "{} available on {}, {} used",
+        "{} free ({}%) on {}, {} used of {} disk",
         format_bytes(snapshot.storage.available_bytes),
+        format_percent(snapshot.storage.available_bytes, snapshot.storage.total_bytes),
         storage_location,
-        format_bytes(snapshot.storage.used_bytes)
+        format_bytes(snapshot.storage.used_bytes),
+        format_bytes(snapshot.storage.total_bytes)
+    );
+    let metric_label = format!(
+        "{} of {} free",
+        format_bytes(snapshot.storage.available_bytes),
+        format_bytes(snapshot.storage.total_bytes)
+    );
+    let metric_percent = format!(
+        "{}%",
+        format_percent(snapshot.storage.available_bytes, snapshot.storage.total_bytes)
     );
 
     DomainHealth {
@@ -394,6 +418,8 @@ fn storage_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
         headline: headline.to_string(),
         detail: detail.to_string(),
         value,
+        metric_label,
+        metric_percent,
     }
 }
 
@@ -401,31 +427,48 @@ fn browser_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
     let label = domain_label(score);
     if let Some(browser) = primary_browser(snapshot) {
         let headline = if score >= 90 {
-            "Your browser activity looks steady."
+            format!("{} looks steady.", browser.name)
         } else if score >= 70 {
-            "Your browser session may be adding a little weight to today's experience."
+            format!("{} is adding browser load.", browser.name)
         } else {
-            "Your browser session is likely affecting today's experience."
+            format!("{} is likely affecting smoothness.", browser.name)
         };
         let detail = if score >= 90 {
-            "Long browser sessions can gradually slow computers. Nothing unusual is showing in this check-in.".to_string()
+            "Browser load is not standing out in this check-in.".to_string()
         } else if score >= 70 {
             format!(
-                "{} may be adding some weight to today's experience.",
+                "{} is carrying noticeable tab and renderer work.",
                 browser.name
             )
         } else {
             format!(
-                "{} is likely one of the reasons the computer may feel slower.",
+                "{} is one of the likely reasons the Mac may feel slower.",
                 browser.name
             )
         };
+        let value = format!(
+            "{} RAM, {} processes, {} renderers",
+            format_bytes(browser.memory_bytes),
+            browser.process_count,
+            browser.renderer_count
+        );
+        let metric_label = format!(
+            "{} of {} used",
+            format_bytes(browser.memory_bytes),
+            format_bytes(snapshot.memory.total_bytes)
+        );
+        let metric_percent = format!(
+            "{}%",
+            format_percent(browser.memory_bytes, snapshot.memory.total_bytes)
+        );
 
         DomainHealth {
             label: label.to_string(),
-            headline: headline.to_string(),
+            headline,
             detail,
-            value: "Browser activity observed".to_string(),
+            value,
+            metric_label,
+            metric_percent,
         }
     } else {
         DomainHealth {
@@ -433,6 +476,8 @@ fn browser_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
             headline: "No browser pressure detected.".to_string(),
             detail: "Browser activity is not standing out right now.".to_string(),
             value: "No browser pressure".to_string(),
+            metric_label: "No browser pressure".to_string(),
+            metric_percent: String::new(),
         }
     }
 }
@@ -446,19 +491,19 @@ fn application_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
     let headline = if score >= 90 {
         "Applications look steady."
     } else if score >= 70 {
-        "One application may need care at your next break."
+        format!("{top_application_name} may need care next.")
     } else {
-        "One application may interrupt your momentum."
+        format!("{top_application_name} may interrupt momentum.")
     };
     let detail = if let Some(application) = top_application {
         if score >= 90 {
             format!(
-                "{} is doing the most work right now, but it does not look disruptive.",
+                "{} is doing the most work, but it does not look disruptive.",
                 top_application_name
             )
         } else {
             format!(
-                "{} is the main application to care about if your Mac starts feeling heavy.",
+                "{} is the main app to care about if your Mac feels heavy.",
                 top_application_name
             )
         }
@@ -466,14 +511,38 @@ fn application_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
         "No application is standing out right now.".to_string()
     };
     let value = top_application
-        .map(|_| format!("{top_application_name} is the main care candidate"))
+        .map(|application| {
+            format!(
+                "{top_application_name} using {} RAM",
+                format_bytes(application.memory_bytes)
+            )
+        })
         .unwrap_or_else(|| "No standout application".to_string());
+    let metric_label = top_application
+        .map(|application| {
+            format!(
+                "{} of {} used",
+                format_bytes(application.memory_bytes),
+                format_bytes(snapshot.memory.total_bytes)
+            )
+        })
+        .unwrap_or_else(|| "No standout app".to_string());
+    let metric_percent = top_application
+        .map(|application| {
+            format!(
+                "{}%",
+                format_percent(application.memory_bytes, snapshot.memory.total_bytes)
+            )
+        })
+        .unwrap_or_default();
 
     DomainHealth {
         label: label.to_string(),
         headline: headline.to_string(),
         detail,
         value,
+        metric_label,
+        metric_percent,
     }
 }
 
@@ -734,6 +803,14 @@ fn format_bytes(bytes: u64) -> String {
     } else {
         let mib = bytes as f64 / 1_048_576.0;
         format!("{mib:.0} MB")
+    }
+}
+
+fn format_percent(part: u64, whole: u64) -> String {
+    if whole == 0 {
+        "0".to_string()
+    } else {
+        format!("{:.0}", (part as f64 / whole as f64) * 100.0)
     }
 }
 

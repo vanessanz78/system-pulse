@@ -77,7 +77,7 @@ The Candle Pulse visual guide is now the durable style reference:
 The Companion should visually feel like a compact Apple menu popover:
 
 - Dark rounded panel with a small top notch
-- Large green circular score ring with the heart inside it
+- Large green circular score ring with the score inside it, no heart shape
 - Reassurance copy beside the score, not a dashboard heading
 - Estimated uninterrupted work time in green
 - Quiet "At a Glance" list with Applications, Storage, Battery, and Memory
@@ -91,7 +91,6 @@ Do not use the expanded reference image as permission to turn Today back into Ac
 
 Display only:
 
-- Heart
 - Pulse Score
 - Greeting
 - Calm state sentence
@@ -161,3 +160,24 @@ UAT for the corrected build:
 2. Confirm the Browser card can show "Needs attention" while the other cards show Good.
 3. Confirm the recommendation panel visually resembles the guide, including the orange primary action and quiet Later button.
 4. Confirm the menu bar Companion includes the one-suggestion row above Open Today when there is a useful suggestion.
+
+## Current Data Clarity Pass
+
+Date: 2 July 2026
+
+Vanessa confirmed the overall visual direction is working and asked for the next refinement:
+
+- The Companion score should be a clean green circle like the expanded Today score, not a heart outline.
+- The four Today cards should show the useful underlying numbers at the bottom of each card.
+- Memory should be framed as RAM, because this is what makes applications feel sluggish.
+- Storage should be framed as disk space, because it affects updates, caches, and reliability.
+- The Things worth knowing list should pair each note with the relevant measure where possible.
+- Recommended care should read as short "Needs attention" action rows, not a wordy question.
+
+UAT for the next build:
+
+1. Open the Companion and confirm the score is a green circle with no heart shape.
+2. Open Today and confirm Applications, Memory, Browser, and Storage each have a metric footer.
+3. Confirm Memory shows RAM available/used and Storage shows disk free/used with percentages.
+4. Confirm Things worth knowing shows compact right-hand metrics.
+5. Confirm Recommended care is headed "Needs attention" and uses short action rows.

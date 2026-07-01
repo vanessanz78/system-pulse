@@ -10,6 +10,8 @@ type DomainHealth = {
   headline: string;
   detail: string;
   value: string;
+  metricLabel: string;
+  metricPercent: string;
 };
 
 type ApplicationImpact = {
@@ -43,6 +45,11 @@ type TodayPulse = {
   batteryHealth?: DomainHealth;
   browserHealth?: DomainHealth;
   topApplications: ApplicationImpact[];
+};
+
+type KnowledgeItem = {
+  label: string;
+  metric?: string;
 };
 
 const app = document.querySelector<HTMLElement>("#app");
@@ -177,6 +184,8 @@ function healthyBatteryFallback(): DomainHealth {
     headline: "Battery is healthy",
     detail: "",
     value: "Healthy",
+    metricLabel: "Battery OK",
+    metricPercent: "",
   };
 }
 
@@ -214,6 +223,24 @@ function firstRecommendedApplication(pulse: TodayPulse): ApplicationImpact | und
   return visibleApplicationOpportunities(pulse)[0];
 }
 
+function primaryApplication(pulse: TodayPulse): ApplicationImpact | undefined {
+  return pulse.topApplications[0];
+}
+
+function applicationMetric(pulse: TodayPulse): string {
+  const application = primaryApplication(pulse);
+  return application ? `${application.name}: ${application.memoryDisplay}` : "No standout app";
+}
+
+function shortMetric(domain: DomainHealth): string {
+  if (domain.metricLabel.includes(" of ")) return domain.metricLabel.split(" of ")[0];
+  return domain.metricLabel || domain.value;
+}
+
+function availabilityMetric(domain: DomainHealth): string {
+  return domain.metricPercent ? `${domain.metricPercent} available` : shortMetric(domain);
+}
+
 function statusDetail(domain: DomainHealth, healthyDetail: string): string {
   if (domainNeedsCare(domain)) {
     return domain.detail || domain.headline || domain.value;
@@ -230,7 +257,12 @@ function todayStatusCard(label: string, icon: string, domain: DomainHealth, heal
       <span class="status-card-icon status-icon status-icon-${escapeHtml(icon)}" aria-hidden="true"></span>
       <h2>${escapeHtml(label)}</h2>
       <strong>${escapeHtml(status)}</strong>
-      <p>${escapeHtml(detail)}</p>
+      <p class="card-detail">${escapeHtml(detail)}</p>
+      <p class="card-metric">
+        <span class="metric-pulse" aria-hidden="true"></span>
+        <span>${escapeHtml(domain.metricLabel || domain.value)}</span>
+        ${domain.metricPercent ? `<strong>${escapeHtml(domain.metricPercent)}</strong>` : ""}
+      </p>
     </section>
   `;
 }
@@ -246,39 +278,56 @@ function todayStatusCards(pulse: TodayPulse): string {
   `;
 }
 
-function knowledgeItems(pulse: TodayPulse): string[] {
+function knowledgeItems(pulse: TodayPulse): KnowledgeItem[] {
   const browser = pulse.browserHealth;
-  const items: string[] = [];
+  const items: KnowledgeItem[] = [];
 
   protectedWorkNotes(pulse).forEach((application) => {
-    items.push(`${application.name} is currently active.`);
+    items.push({
+      label: `${application.name} is active`,
+      metric: `${application.memoryDisplay} RAM`,
+    });
   });
 
   if (browser && domainNeedsCare(browser)) {
-    items.push(browser.headline);
+    items.push({ label: browser.headline, metric: shortMetric(browser) });
   }
 
   if (domainNeedsCare(pulse.applicationHealth)) {
-    items.push(pulse.applicationHealth.headline);
+    items.push({ label: pulse.applicationHealth.headline, metric: applicationMetric(pulse) });
   }
 
   if (domainNeedsCare(pulse.memoryHealth)) {
-    items.push(pulse.memoryHealth.headline);
+    items.push({ label: pulse.memoryHealth.headline, metric: shortMetric(pulse.memoryHealth) });
   }
 
   if (domainNeedsCare(pulse.storageHealth)) {
-    items.push(pulse.storageHealth.headline);
+    items.push({ label: pulse.storageHealth.headline, metric: availabilityMetric(pulse.storageHealth) });
   } else if (pulse.storageHealth.value) {
-    items.push(`Storage has ${pulse.storageHealth.value}.`);
+    items.push({ label: "Storage has room", metric: availabilityMetric(pulse.storageHealth) });
   }
 
-  const uniqueItems = Array.from(new Set(items.filter(Boolean))).slice(0, 4);
-  return uniqueItems.length ? uniqueItems : ["Nothing needs attention right now."];
+  const seen = new Set<string>();
+  const uniqueItems = items
+    .filter((item) => {
+      if (!item.label || seen.has(item.label)) return false;
+      seen.add(item.label);
+      return true;
+    })
+    .slice(0, 4);
+  return uniqueItems.length ? uniqueItems : [{ label: "Nothing needs attention right now." }];
 }
 
 function knowledgeList(pulse: TodayPulse): string {
   const items = knowledgeItems(pulse)
-    .map((item) => `<li>${escapeHtml(item)}</li>`)
+    .map(
+      (item) => `
+        <li>
+          <span>${escapeHtml(item.label)}</span>
+          ${item.metric ? `<strong>${escapeHtml(item.metric)}</strong>` : ""}
+        </li>
+      `,
+    )
     .join("");
   return `
     <section class="summary-section">
@@ -297,10 +346,104 @@ function quietCareLabel(application: ApplicationImpact): string {
 }
 
 function primaryCareButtonLabel(application: ApplicationImpact): string {
-  if (application.actionKind === "restartApp") return "Restart now";
-  if (application.actionKind === "quitApp") return "Quit now";
-  if (application.actionKind === "restartFinder") return "Restart now";
+  if (application.actionKind === "restartApp") return "Restart";
+  if (application.actionKind === "quitApp") return "Close";
+  if (application.actionKind === "restartFinder") return "Restart";
   return application.actionLabel || "Start";
+}
+
+function applicationCareTask(application: ApplicationImpact): string {
+  return `
+    <div class="care-task">
+      <span class="care-task-icon status-icon status-icon-apps" aria-hidden="true"></span>
+      <div class="care-task-copy">
+        <p class="care-task-label">Application</p>
+        <strong>${escapeHtml(application.name)}</strong>
+        <small>${escapeHtml(application.memoryDisplay)} RAM</small>
+      </div>
+      <div class="care-task-actions">
+        <button
+          class="recommended-primary-button"
+          type="button"
+          data-care-action="${escapeHtml(actionId(application))}"
+        >
+          ${escapeHtml(primaryCareButtonLabel(application))}
+        </button>
+        <button
+          class="recommended-secondary-button"
+          type="button"
+          data-care-remind="${escapeHtml(actionId(application))}"
+        >
+          Later
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function browserCareTask(domain: DomainHealth, application: ApplicationImpact): string {
+  return `
+    <div class="care-task">
+      <span class="care-task-icon status-icon status-icon-browser" aria-hidden="true"></span>
+      <div class="care-task-copy">
+        <p class="care-task-label">Browser</p>
+        <strong>${escapeHtml(application.name)}</strong>
+        <small>${escapeHtml(shortMetric(domain))} RAM</small>
+      </div>
+      <div class="care-task-actions">
+        <button class="recommended-primary-button" type="button" data-care-action="${escapeHtml(actionId(application))}">
+          ${escapeHtml(primaryCareButtonLabel(application))}
+        </button>
+        <button class="recommended-secondary-button" type="button" data-care-remind="${escapeHtml(actionId(application))}">
+          Later
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function domainCareTask(
+  label: string,
+  icon: string,
+  domain: DomainHealth,
+  actionLabel: string,
+  secondaryLabel: string,
+  actionKind: string,
+): string {
+  return `
+    <div class="care-task">
+      <span class="care-task-icon status-icon status-icon-${escapeHtml(icon)}" aria-hidden="true"></span>
+      <div class="care-task-copy">
+        <p class="care-task-label">${escapeHtml(label)}</p>
+        <strong>${escapeHtml(domain.headline)}</strong>
+        <small>${escapeHtml(domain.metricLabel || domain.value)}</small>
+      </div>
+      <div class="care-task-actions">
+        <button class="recommended-primary-button" type="button" data-domain-action="${escapeHtml(actionKind)}">
+          ${escapeHtml(actionLabel)}
+        </button>
+        <button class="recommended-secondary-button" type="button" data-domain-action="${escapeHtml(actionKind)}">
+          ${escapeHtml(secondaryLabel)}
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function careTasks(pulse: TodayPulse): string[] {
+  const tasks: string[] = [];
+  const application = firstRecommendedApplication(pulse);
+  if (application) tasks.push(applicationCareTask(application));
+  if (domainNeedsCare(pulse.memoryHealth)) {
+    tasks.push(domainCareTask("Memory", "memory", pulse.memoryHealth, "Free Up", "Details", "openActivityMonitor"));
+  }
+  if (application && pulse.browserHealth && domainNeedsCare(pulse.browserHealth)) {
+    tasks.push(browserCareTask(pulse.browserHealth, application));
+  }
+  if (domainNeedsCare(pulse.storageHealth)) {
+    tasks.push(domainCareTask("Storage", "storage", pulse.storageHealth, "Manage", "Details", "openStorageSettings"));
+  }
+  return tasks.slice(0, 4);
 }
 
 function quickSuggestion(pulse: TodayPulse): string {
@@ -360,58 +503,14 @@ function quietApplicationButtons(application: ApplicationImpact, includePrimary 
 }
 
 function recommendedCare(pulse: TodayPulse): string {
-  const application = firstRecommendedApplication(pulse);
-  if (application) {
+  const tasks = careTasks(pulse);
+  if (tasks.length) {
     return `
-      <section class="summary-section care-panel recommended-panel">
-        <p class="panel-kicker recommended-kicker"><span aria-hidden="true">&#9733;</span> Recommended</p>
+      <section class="summary-section care-panel attention-panel">
+        <p class="panel-kicker recommended-kicker"><span aria-hidden="true">&#9733;</span> Needs attention</p>
         ${careMessageHtml()}
-        <div class="recommended-care-layout">
-          <button
-            class="recommendation-row"
-            type="button"
-            data-detail-action="${escapeHtml(actionId(application))}"
-          >
-            <span>${escapeHtml(quietCareLabel(application))}</span>
-            <small>Estimated benefit</small>
-            <strong>${escapeHtml(application.careEstimatedImprovement)}</strong>
-            <em>Smoother experience ahead.</em>
-          </button>
-          <div class="recommended-actions">
-            <button
-              class="recommended-primary-button"
-              type="button"
-              data-care-action="${escapeHtml(actionId(application))}"
-            >
-              ${escapeHtml(primaryCareButtonLabel(application))}
-            </button>
-            <button
-              class="recommended-secondary-button"
-              type="button"
-              data-care-remind="${escapeHtml(actionId(application))}"
-            >
-              Later
-            </button>
-          </div>
-        </div>
-      </section>
-    `;
-  }
-
-  if (domainNeedsCare(pulse.storageHealth)) {
-    return `
-      <section class="summary-section care-panel">
-        <p class="panel-kicker">Recommended care</p>
-        <h2>Do I need to do anything?</h2>
-        ${careMessageHtml()}
-        <div class="recommendation-row as-text">
-          <span>Storage</span>
-          <strong>${escapeHtml(pulse.storageHealth.headline)}</strong>
-        </div>
-        <div class="quiet-action-row">
-          <button class="quiet-action-button primary-quiet-action" type="button" data-domain-action="openStorageSettings">
-            Open Settings
-          </button>
+        <div class="care-task-list">
+          ${tasks.join("")}
         </div>
       </section>
     `;
@@ -419,7 +518,7 @@ function recommendedCare(pulse: TodayPulse): string {
 
   return `
     <section class="summary-section care-panel calm-panel">
-      <h2>Do I need to do anything?</h2>
+      <h2>No action needed</h2>
       ${careMessageHtml()}
       <p class="summary-answer">Nothing right now.</p>
     </section>
@@ -517,8 +616,7 @@ function renderQuickCheckin(pulse: TodayPulse, _refreshing = false): void {
         <span class="companion-gear" aria-hidden="true">&#9881;</span>
 
         <div class="companion-hero">
-          <div class="heart-score" aria-label="System Pulse score ${pulse.systemScore}">
-            <span class="heart-score-shape" aria-hidden="true">&#9825;</span>
+          <div class="companion-score" aria-label="System Pulse score ${pulse.systemScore}">
             <strong>${pulse.systemScore}</strong>
           </div>
 
@@ -622,7 +720,7 @@ function wireCareActions(pulse: TodayPulse): void {
         remindUntil: Date.now() + 30 * 60 * 1000,
       };
       writeCareState(state);
-      careMessage = `${application.name} will come back in about 30 minutes if System Pulse is still open.`;
+      careMessage = `${application.name} will reappear in 30 minutes.`;
       selectedApplicationId = null;
       renderToday(pulse);
     });
@@ -639,7 +737,7 @@ function wireCareActions(pulse: TodayPulse): void {
         ignoredOn: todayKey(),
       };
       writeCareState(state);
-      careMessage = `${application.name} is ignored for today.`;
+      careMessage = `${application.name} hidden for today.`;
       selectedApplicationId = null;
       renderToday(pulse);
     });
