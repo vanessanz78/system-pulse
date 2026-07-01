@@ -1,0 +1,148 @@
+name: macOS Signed Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  signed-macos-release:
+    name: Build signed and notarized macOS release
+    runs-on: macos-latest
+    env:
+      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+      APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+      APPLE_API_PRIVATE_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY }}
+
+    steps:
+      - name: Check required Apple release secrets
+        shell: bash
+        run: |
+          missing=0
+          for name in \
+            APPLE_CERTIFICATE \
+            APPLE_CERTIFICATE_PASSWORD \
+            KEYCHAIN_PASSWORD \
+            APPLE_API_KEY \
+            APPLE_API_ISSUER \
+            APPLE_API_PRIVATE_KEY
+          do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing GitHub secret: $name"
+              missing=1
+            fi
+          done
+
+          if [ "$missing" -ne 0 ]; then
+            echo "Signed macOS releases require Apple Developer ID signing and notarization secrets."
+            exit 1
+          fi
+
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.7.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+
+      - name: Install JavaScript dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Check TypeScript
+        run: pnpm check
+
+      - name: Generate desktop icons
+        run: pnpm --filter @system-pulse/desktop prepare:icons
+
+      - name: Import Developer ID certificate
+        shell: bash
+        run: |
+          certificate_path="$RUNNER_TEMP/system-pulse-developer-id.p12"
+          keychain_path="$RUNNER_TEMP/system-pulse-signing.keychain-db"
+
+          printf '%s' "$APPLE_CERTIFICATE" | base64 --decode > "$certificate_path" \
+            || printf '%s' "$APPLE_CERTIFICATE" | base64 -D > "$certificate_path"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$keychain_path"
+          security import "$certificate_path" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k "$keychain_path"
+          security list-keychains -d user -s "$keychain_path" $(security list-keychains -d user | sed 's/"//g')
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "$KEYCHAIN_PASSWORD" \
+            "$keychain_path"
+
+          signing_identity="$(security find-identity -v -p codesigning "$keychain_path" | awk -F '"' '/Developer ID Application/ { print $2; exit }')"
+          if [ -z "$signing_identity" ]; then
+            echo "No Developer ID Application signing identity was found in the imported certificate."
+            exit 1
+          fi
+
+          echo "APPLE_SIGNING_IDENTITY=$signing_identity" >> "$GITHUB_ENV"
+          echo "SYSTEM_PULSE_SIGNING_KEYCHAIN=$keychain_path" >> "$GITHUB_ENV"
+
+      - name: Configure App Store Connect notarization key
+        shell: bash
+        run: |
+          notarization_key_path="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY}.p8"
+          printf '%s' "$APPLE_API_PRIVATE_KEY" > "$notarization_key_path"
+          chmod 600 "$notarization_key_path"
+          echo "APPLE_API_KEY_PATH=$notarization_key_path" >> "$GITHUB_ENV"
+
+      - name: Build signed and notarized DMG
+        shell: bash
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ env.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_KEY: ${{ env.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ env.APPLE_API_ISSUER }}
+          APPLE_API_KEY_PATH: ${{ env.APPLE_API_KEY_PATH }}
+        run: pnpm --filter @system-pulse/desktop exec tauri build --bundles dmg
+
+      - name: Verify signed release opens under Gatekeeper
+        shell: bash
+        run: |
+          app_path="$(find app/desktop/src-tauri/target/release/bundle/macos -maxdepth 1 -name 'System Pulse.app' -type d | head -n 1)"
+          dmg_path="$(find app/desktop/src-tauri/target/release/bundle/dmg -maxdepth 1 -name '*.dmg' -type f | head -n 1)"
+
+          if [ -z "$app_path" ] || [ -z "$dmg_path" ]; then
+            echo "The signed app bundle or DMG was not created."
+            exit 1
+          fi
+
+          codesign --verify --deep --strict --verbose=2 "$app_path"
+          spctl --assess --type execute --verbose=4 "$app_path"
+          spctl --assess --type open --verbose=4 "$dmg_path"
+
+      - name: Upload signed macOS release artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: system-pulse-macos-signed-release
+          path: |
+            app/desktop/src-tauri/target/release/bundle/dmg/*.dmg
+            app/desktop/src-tauri/target/release/bundle/macos/*.app
+          if-no-files-found: error
