@@ -16,6 +16,18 @@ Transform System Pulse from a dashboard into a decision-support companion.
 
 Every screen should help the user make the next right decision about their Mac.
 
+## Mental Model
+
+Design System Pulse as if Apple were redesigning the Battery menu, not Activity Monitor.
+
+System Pulse is glanceable, calm, reassuring, time-based, and action-only-when-needed.
+
+The popup is the Battery menu.
+
+Today is an inbox.
+
+Only things requiring attention should remain visible. Everything else should disappear.
+
 ## Primary Product Goal
 
 System Pulse answers three questions:
@@ -30,9 +42,11 @@ Nothing else should compete with these questions.
 
 - The popup contains too much competing copy.
 - Today repeats information already shown in the popup.
-- Applications present information instead of actions.
+- Today still risks becoming a dashboard instead of an inbox.
+- Applications present information before the user asks for detail.
 - PulseCore reasoning is still too exposed.
 - Technical terminology leaks into the experience.
+- Large buttons make calm maintenance feel urgent.
 
 ## Design Direction
 
@@ -51,7 +65,8 @@ Display only:
 - Heart
 - Pulse Score
 - Estimated uninterrupted work time
-- One sentence answering "Can I keep working?"
+- One direct answer to "Can I keep working?"
+- Quiet at-a-glance checks for Applications, Memory, and Storage
 - One recommended action only if needed
 - Open Today
 
@@ -59,12 +74,18 @@ Nothing else.
 
 ## Dashboard Requirements
 
-Do not repeat the popup.
+Today is not a dashboard.
 
-Instead, answer:
+Today should become one calm summary page:
 
-- Why?
-- What should I do?
-- How much uninterrupted work will this action buy me?
+- Greeting
+- Current shape
+- Estimated uninterrupted work time
+- Things worth knowing
+- Do I need to do anything?
+
+No Flow card, Browser card, Memory card, Storage card, Applications card, or Next Best Step card.
+
+If the user clicks a specific item, then show detail for that item only.
 
 Every section should either reassure, recommend, or disappear.
