@@ -4,8 +4,8 @@
 | --- | --- |
 | Status | Initial build pipeline |
 | Owner | TBD |
-| Last Updated | 2026-06-30 |
-| Decision State | Development artifacts first, public releases later |
+| Last Updated | 2026-07-01 |
+| Decision State | Development artifacts first, public releases require signed distribution |
 
 ## Plain-English Model
 
@@ -48,9 +48,9 @@ Replit is not the right place to verify the macOS desktop app because System Pul
 
 The first GitHub builds are development artifacts.
 
-They are for internal testing only and may be unsigned. macOS may warn before opening them.
+They are for internal testing only and may be unsigned or ad-hoc signed. macOS may warn before opening them. That is not acceptable for a customer-facing product download.
 
-Public releases will come later and should include:
+Public releases must include:
 
 - code signing;
 - notarization for macOS;
@@ -59,9 +59,17 @@ Public releases will come later and should include:
 - clear version numbers;
 - update strategy.
 
+## macOS Public Release Gate
+
+A Mac build is customer-ready only when it is produced by the manual `macOS Signed Release` workflow and verified as signed and notarized.
+
+The customer-ready requirement is simple: a user must be able to download the Mac build, drag it into Applications, and double-click it without running a Terminal command.
+
+See [macOS Release Signing And Notarization](34-macOS-Release-Signing-And-Notarization.md) for the required Apple Developer credentials, GitHub Actions secrets, and release checklist.
+
 ## Current Workflow
 
-The workflow is defined in `.github/workflows/desktop-build.yml`.
+The internal UAT workflow is defined in `.github/workflows/desktop-build.yml`.
 
 It builds:
 
@@ -71,22 +79,24 @@ It builds:
 
 The workflow can run manually from GitHub Actions and also runs when desktop app source files change on `main`.
 
+The customer-ready macOS release workflow is defined in `.github/workflows/macos-signed-release.yml`. It is manual-only and requires Apple Developer ID signing and notarization secrets before it can produce a public Mac artifact.
+
 ## Current Limitations
 
-- The macOS artifact is not yet a polished public release.
-- Code signing and notarization are not configured.
+- The standard macOS artifact is not yet a polished public release.
+- Apple Developer ID signing and notarization secrets are not configured yet.
 - Automatic updates are not configured.
 - The website does not yet link to release downloads.
 - The full source-original document library still needs a separate import if those original files should live in GitHub.
 
 ## Next Product Step
 
-Continue improving the macOS app first.
+Continue improving the macOS app first, while preparing the release account infrastructure required for customer-ready distribution.
 
 The next app milestone should focus on:
 
-- menu bar presence;
+- customer-ready signing and notarization setup;
+- menu bar reliability;
 - click-to-open Today;
-- manual refresh;
 - clearer loading and error states;
 - preserving PulseCore as the only recommendation engine.
