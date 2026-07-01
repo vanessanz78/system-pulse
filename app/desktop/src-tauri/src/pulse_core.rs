@@ -489,7 +489,7 @@ fn application_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
         .map(|application| display_application_name(&application.name))
         .unwrap_or("No application");
     let headline = if score >= 90 {
-        "Applications look steady."
+        "Applications look steady.".to_string()
     } else if score >= 70 {
         format!("{top_application_name} may need care next.")
     } else {
@@ -538,7 +538,7 @@ fn application_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
 
     DomainHealth {
         label: label.to_string(),
-        headline: headline.to_string(),
+        headline,
         detail,
         value,
         metric_label,
