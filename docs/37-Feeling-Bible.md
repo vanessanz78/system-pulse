@@ -46,6 +46,7 @@ The Companion should show:
 
 Visual reference:
 
+- Read `docs/38-Candle-Pulse-Visual-Guide.md` before changing the Companion or Today surfaces.
 - Compact dark Apple-menu-style popover
 - Small top notch
 - Score ring on the left

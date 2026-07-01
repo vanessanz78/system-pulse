@@ -12,6 +12,8 @@ Read this file before the Product Bible, README, or any older process document w
 
 Then read `docs/37-Feeling-Bible.md`.
 
+Then read `docs/38-Candle-Pulse-Visual-Guide.md`.
+
 ## Sprint Goal
 
 Transform System Pulse from a dashboard into a trusted companion.
@@ -68,6 +70,10 @@ Today's Plan exists only when the user chooses to investigate.
 
 ## Visual North Star
 
+The Candle Pulse visual guide is now the durable style reference:
+
+- `docs/38-Candle-Pulse-Visual-Guide.md`
+
 The Companion should visually feel like a compact Apple menu popover:
 
 - Dark rounded panel with a small top notch
@@ -76,6 +82,10 @@ The Companion should visually feel like a compact Apple menu popover:
 - Estimated uninterrupted work time in green
 - Quiet "At a Glance" list with Applications, Storage, Battery, and Memory
 - One calm Open Today button
+
+Use the Candle Pulse guide for visual language, mood, density, and hierarchy.
+
+Do not use the expanded reference image as permission to turn Today back into Activity Monitor.
 
 ## Companion Requirements
 
