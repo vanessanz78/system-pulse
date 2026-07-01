@@ -37,12 +37,21 @@ It should feel like Candle Pulse and Apple Battery: warm, quiet, confident, and 
 
 The Companion should show:
 
-- Heart and score
-- Greeting
+- Large circular heart and score
+- A calm health headline
 - Calm state sentence
 - Estimated uninterrupted work time
 - Tiny status checks for Applications, Memory, Storage, and Battery
 - Open Today
+
+Visual reference:
+
+- Compact dark Apple-menu-style popover
+- Small top notch
+- Score ring on the left
+- Reassurance copy on the right
+- "At a Glance" status list below
+- Quiet full-width Open Today button
 
 The Companion should not show:
 

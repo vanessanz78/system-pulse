@@ -119,19 +119,21 @@ function shouldHideOpportunity(application: ApplicationImpact): boolean {
   return Boolean(state.remindUntil && state.remindUntil > Date.now());
 }
 
-function companionStateLine(state: HealthState): string {
-  if (state === "healthy") return "Everything is running well.";
-  if (state === "attention") return "Everything is okay. Finish what you're doing first.";
-  return "Your Mac needs a little care soon.";
+function companionHeadline(state: HealthState): string {
+  if (state === "healthy") return "Everything is healthy.";
+  if (state === "attention") return "Everything is okay.";
+  return "Care is needed soon.";
+}
+
+function companionDetailLine(state: HealthState): string {
+  if (state === "healthy") return "Your computer is performing well.";
+  if (state === "attention") return "Finish what you're doing first.";
+  return "Take a care moment when you can.";
 }
 
 function domainNeedsCare(domain: DomainHealth): boolean {
   const label = domain.label.toLowerCase();
   return label !== "ok" && label !== "healthy";
-}
-
-function signalMark(domain: DomainHealth): string {
-  return domainNeedsCare(domain) ? "!" : "&#10003;";
 }
 
 function signalClass(domain: DomainHealth): string {
@@ -180,11 +182,9 @@ function companionStatusLabel(domain: DomainHealth): string {
 function companionSignal(label: string, domain: DomainHealth): string {
   return `
     <li class="${signalClass(domain)}">
+      <span class="status-dot" aria-hidden="true"></span>
       <span class="status-name">${escapeHtml(label)}</span>
-      <strong>
-        <span aria-hidden="true">${signalMark(domain)}</span>
-        ${companionStatusLabel(domain)}
-      </strong>
+      <strong>${companionStatusLabel(domain)}</strong>
     </li>
   `;
 }
@@ -192,9 +192,9 @@ function companionSignal(label: string, domain: DomainHealth): string {
 function companionGlance(pulse: TodayPulse): string {
   const items = [
     companionSignal("Applications", pulse.applicationHealth),
-    companionSignal("Memory", pulse.memoryHealth),
     companionSignal("Storage", pulse.storageHealth),
     companionSignal("Battery", pulse.batteryHealth ?? healthyBatteryFallback()),
+    companionSignal("Memory", pulse.memoryHealth),
   ].join("");
 
   return `
@@ -393,23 +393,32 @@ function renderCurrentView(pulse: TodayPulse, refreshing = false): void {
 function renderQuickCheckin(pulse: TodayPulse, _refreshing = false): void {
   appRoot.innerHTML = `
     <main class="quick-shell" data-state="${pulse.healthState}">
-      <section class="quick-card">
-        <div class="companion-score" aria-label="System Pulse score">
-          <span class="heart mini-heart" aria-hidden="true">&hearts;</span>
-          <strong>${pulse.systemScore}</strong>
+      <section class="quick-card" aria-label="System Pulse Companion">
+        <span class="companion-gear" aria-hidden="true">&#9881;</span>
+
+        <div class="companion-hero">
+          <div class="pulse-ring" aria-label="System Pulse score ${pulse.systemScore}">
+            <div class="pulse-orb">
+              <span class="pulse-heart" aria-hidden="true">&hearts;</span>
+              <strong>${pulse.systemScore}</strong>
+            </div>
+          </div>
+
+          <div class="companion-copy">
+            <h1>${companionHeadline(pulse.healthState)}</h1>
+            <p>${companionDetailLine(pulse.healthState)}</p>
+
+            <div class="companion-time">
+              <span>Estimated uninterrupted work time</span>
+              <strong>${escapeHtml(pulse.flowRemainingLabel)}</strong>
+            </div>
+          </div>
         </div>
 
-        <div class="companion-answer">
-          <h1>${dayGreeting()}, ${USER_NAME}.</h1>
-          <p>${companionStateLine(pulse.healthState)}</p>
+        <div class="companion-glance-section">
+          <h2>At a Glance</h2>
+          ${companionGlance(pulse)}
         </div>
-
-        <div class="companion-time">
-          <span>Estimated uninterrupted work time</span>
-          <strong>${escapeHtml(pulse.flowRemainingLabel)}</strong>
-        </div>
-
-        ${companionGlance(pulse)}
 
         <button id="open-today-button" class="open-today-button" type="button">
           Open Today

@@ -66,6 +66,17 @@ The Companion should be understandable in under three seconds.
 
 Today's Plan exists only when the user chooses to investigate.
 
+## Visual North Star
+
+The Companion should visually feel like a compact Apple menu popover:
+
+- Dark rounded panel with a small top notch
+- Large green circular score ring with the heart inside it
+- Reassurance copy beside the score, not a dashboard heading
+- Estimated uninterrupted work time in green
+- Quiet "At a Glance" list with Applications, Storage, Battery, and Memory
+- One calm Open Today button
+
 ## Companion Requirements
 
 Display only:
