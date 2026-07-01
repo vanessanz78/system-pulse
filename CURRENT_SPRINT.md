@@ -2,7 +2,7 @@
 
 # CURRENT_SPRINT
 
-Sprint: Decision Support, Not Diagnostics
+Sprint: Companion, Not Software
 
 Status: Active
 
@@ -10,19 +10,27 @@ Status: Active
 
 Read this file before the Product Bible, README, or any older process document when deciding what to change next.
 
+Then read `docs/37-Feeling-Bible.md`.
+
 ## Sprint Goal
 
-Transform System Pulse from a dashboard into a decision-support companion.
+Transform System Pulse from a dashboard into a trusted companion.
 
-Every screen should help the user make the next right decision about their Mac.
+Every screen should help the user feel calm, in control, reassured, and ready to keep creating.
 
 ## Mental Model
+
+Stop designing System Pulse like software. Start designing it like a trusted companion that quietly checks in.
 
 Design System Pulse as if Apple were redesigning the Battery menu, not Activity Monitor.
 
 System Pulse is glanceable, calm, reassuring, time-based, and action-only-when-needed.
 
-The popup is the Battery menu.
+Product One is the Companion.
+
+Product Two is Today's Plan.
+
+The Companion is the Battery menu.
 
 Today is an inbox.
 
@@ -30,57 +38,58 @@ Only things requiring attention should remain visible. Everything else should di
 
 ## Primary Product Goal
 
-System Pulse answers three questions:
+System Pulse answers four questions:
 
-1. Can I keep working?
-2. Approximately how long do I have before slowdown becomes likely?
-3. What is the smallest action that buys me more uninterrupted work?
+1. Am I okay?
+2. How long have I got?
+3. Anything I should know?
+4. Need more?
 
 Nothing else should compete with these questions.
 
 ## Current Problems
 
-- The popup contains too much competing copy.
-- Today repeats information already shown in the popup.
+- The app keeps drifting back toward categories instead of reassurance.
 - Today still risks becoming a dashboard instead of an inbox.
-- Applications present information before the user asks for detail.
-- PulseCore reasoning is still too exposed.
+- Applications, memory, storage, browser, and flow can become feature cards instead of tiny status signals.
 - Technical terminology leaks into the experience.
-- Large buttons make calm maintenance feel urgent.
+- Large action buttons make calm maintenance feel urgent.
+- Disabled or fake actions would damage trust immediately.
 
 ## Design Direction
 
-The popup is the product.
+The Companion is the product.
 
-The dashboard is the explanation.
+Today's Plan is the inbox.
 
-The popup should be understandable in under five seconds.
+The Companion should be understandable in under three seconds.
 
-The dashboard exists only when the user chooses to investigate.
+Today's Plan exists only when the user chooses to investigate.
 
-## Popup Requirements
+## Companion Requirements
 
 Display only:
 
 - Heart
 - Pulse Score
+- Greeting
+- Calm state sentence
 - Estimated uninterrupted work time
-- One direct answer to "Can I keep working?"
-- Quiet at-a-glance checks for Applications, Memory, and Storage
-- One recommended action only if needed
+- Quiet at-a-glance checks for Applications, Memory, Storage, and Battery
 - Open Today
 
 Nothing else.
 
-## Dashboard Requirements
+No restart button, next best step, local check label, live label, version number, or diagnostic explanation in the Companion.
+
+## Today's Plan Requirements
 
 Today is not a dashboard.
 
-Today should become one calm summary page:
+Today should become one calm plan:
 
 - Greeting
-- Current shape
-- Estimated uninterrupted work time
+- "You're good for" time remaining
 - Things worth knowing
 - Do I need to do anything?
 
@@ -89,3 +98,5 @@ No Flow card, Browser card, Memory card, Storage card, Applications card, or Nex
 If the user clicks a specific item, then show detail for that item only.
 
 Every section should either reassure, recommend, or disappear.
+
+Only show an action when it is genuinely implemented. If it is not wired yet, hide it or mark it as coming soon.
