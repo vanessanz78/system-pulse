@@ -33,6 +33,7 @@ Use:
 
 - Dark translucent rounded panel.
 - Soft green glow around the pulse mark.
+- Whole, clean pulse shapes. No pie-chart wedges, cut-out slices, or conic progress shadows inside the heart or score mark.
 - Heart and score as the emotional anchor.
 - Warm greeting beside the score.
 - Plain reassurance, such as "You're good to keep working."
