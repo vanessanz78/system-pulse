@@ -121,3 +121,22 @@ If the user clicks a specific item, then show detail for that item only.
 Every section should either reassure, recommend, or disappear.
 
 Only show an action when it is genuinely implemented. If it is not wired yet, hide it or mark it as coming soon.
+
+## Current Implementation Pass
+
+Date: 1 July 2026
+
+This pass implements the Candle Pulse visual guide in the actual desktop UI, not only in documentation.
+
+- The Companion moves away from a chart-like score circle and uses a glowing heart score mark.
+- The Companion keeps the Candle Pulse structure: warm greeting, time remaining, quiet at-a-glance rows, and one Open Today button.
+- The at-a-glance rows now use small visual status symbols for Applications, Memory, Browser, and Storage.
+- Today opens as a dark glass window with a title bar, score and greeting hero, time as the primary readout, things worth knowing, one care panel, and a calm reassurance strip.
+- The pulse shapes stay whole and clean: no pie-chart wedge, cut-out slice, or conic progress shadow.
+
+UAT for the next build:
+
+1. Open the menu bar Companion and confirm it visually resembles the Candle Pulse menu bar reference.
+2. Confirm the heart/score mark is not a bland circular chart and has no pie-slice shadow.
+3. Click Open Today and confirm the expanded view feels like a calm glass window, not a plain report.
+4. Confirm only one care suggestion appears when action is useful.

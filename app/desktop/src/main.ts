@@ -120,15 +120,20 @@ function shouldHideOpportunity(application: ApplicationImpact): boolean {
 }
 
 function companionHeadline(state: HealthState): string {
-  if (state === "healthy") return "Everything is healthy.";
-  if (state === "attention") return "Everything is okay.";
-  return "Care is needed soon.";
+  if (state === "critical") return "Care is needed soon.";
+  return `${dayGreeting()}, ${USER_NAME}.`;
 }
 
 function companionDetailLine(state: HealthState): string {
-  if (state === "healthy") return "Your computer is performing well.";
+  if (state === "healthy") return "You're good to keep working.";
   if (state === "attention") return "Finish what you're doing first.";
   return "Take a care moment when you can.";
+}
+
+function focusLine(state: HealthState): string {
+  if (state === "healthy") return "You're in a good place to focus.";
+  if (state === "attention") return "You're okay to keep going for now.";
+  return "Let's make a little room before deep work.";
 }
 
 function domainNeedsCare(domain: DomainHealth): boolean {
@@ -176,13 +181,14 @@ function healthyBatteryFallback(): DomainHealth {
 }
 
 function companionStatusLabel(domain: DomainHealth): string {
-  return domainNeedsCare(domain) ? "Needs care" : "Healthy";
+  return domainNeedsCare(domain) ? "Needs attention" : "Good";
 }
 
-function companionSignal(label: string, domain: DomainHealth): string {
+function companionSignal(label: string, icon: string, domain: DomainHealth): string {
   return `
     <li class="${signalClass(domain)}">
       <span class="status-dot" aria-hidden="true"></span>
+      <span class="status-icon status-icon-${escapeHtml(icon)}" aria-hidden="true"></span>
       <span class="status-name">${escapeHtml(label)}</span>
       <strong>${companionStatusLabel(domain)}</strong>
     </li>
@@ -191,10 +197,10 @@ function companionSignal(label: string, domain: DomainHealth): string {
 
 function companionGlance(pulse: TodayPulse): string {
   const items = [
-    companionSignal("Applications", pulse.applicationHealth),
-    companionSignal("Storage", pulse.storageHealth),
-    companionSignal("Battery", pulse.batteryHealth ?? healthyBatteryFallback()),
-    companionSignal("Memory", pulse.memoryHealth),
+    companionSignal("Applications", "apps", pulse.applicationHealth),
+    companionSignal("Memory", "memory", pulse.memoryHealth),
+    companionSignal("Browser", "browser", pulse.browserHealth ?? healthyBatteryFallback()),
+    companionSignal("Storage", "storage", pulse.storageHealth),
   ].join("");
 
   return `
@@ -295,7 +301,8 @@ function recommendedCare(pulse: TodayPulse): string {
   const application = firstRecommendedApplication(pulse);
   if (application) {
     return `
-      <section class="summary-section">
+      <section class="summary-section care-panel">
+        <p class="panel-kicker">Recommended care</p>
         <h2>Do I need to do anything?</h2>
         ${careMessageHtml()}
         <button
@@ -304,6 +311,7 @@ function recommendedCare(pulse: TodayPulse): string {
           data-detail-action="${escapeHtml(actionId(application))}"
         >
           <span>${escapeHtml(quietCareLabel(application))}</span>
+          <strong>Estimated benefit ${escapeHtml(application.careEstimatedImprovement)}</strong>
         </button>
         ${quietApplicationButtons(application)}
       </section>
@@ -312,7 +320,8 @@ function recommendedCare(pulse: TodayPulse): string {
 
   if (domainNeedsCare(pulse.storageHealth)) {
     return `
-      <section class="summary-section">
+      <section class="summary-section care-panel">
+        <p class="panel-kicker">Recommended care</p>
         <h2>Do I need to do anything?</h2>
         ${careMessageHtml()}
         <div class="recommendation-row as-text">
@@ -329,7 +338,7 @@ function recommendedCare(pulse: TodayPulse): string {
   }
 
   return `
-    <section class="summary-section">
+    <section class="summary-section care-panel calm-panel">
       <h2>Do I need to do anything?</h2>
       ${careMessageHtml()}
       <p class="summary-answer">Nothing right now.</p>
@@ -337,20 +346,44 @@ function recommendedCare(pulse: TodayPulse): string {
   `;
 }
 
+function reassuranceStrip(): string {
+  return `
+    <section class="calm-strip" aria-label="Reassurance">
+      <span class="horizon-mark" aria-hidden="true"></span>
+      <div>
+        <strong>Everything else looks good.</strong>
+        <p>You're all set to keep going.</p>
+      </div>
+    </section>
+  `;
+}
+
 function todaySummary(pulse: TodayPulse): string {
   return `
     <main class="today-summary" aria-label="Today's Plan">
-      <section class="summary-intro">
-        <h1>${dayGreeting()}, ${USER_NAME}.</h1>
+      <section class="today-hero">
+        <div class="summary-pulse" aria-label="System Pulse score ${pulse.systemScore}">
+          <strong>${pulse.systemScore}</strong>
+        </div>
+
+        <div class="summary-intro">
+          <h1>${dayGreeting()}, ${USER_NAME}.</h1>
+          <p>${focusLine(pulse.healthState)}</p>
+        </div>
       </section>
 
       <section class="summary-time">
-        <span>You're good for</span>
+        <span>Estimated uninterrupted work time</span>
         <strong>${escapeHtml(pulse.flowRemainingLabel)}</strong>
+        <p>${pulse.healthState === "critical" ? "A short care moment will help." : "Plenty of time for deep work."}</p>
       </section>
 
-      ${knowledgeList(pulse)}
-      ${recommendedCare(pulse)}
+      <div class="today-panels">
+        ${knowledgeList(pulse)}
+        ${recommendedCare(pulse)}
+      </div>
+
+      ${reassuranceStrip()}
     </main>
   `;
 }
@@ -360,10 +393,13 @@ function applicationDetail(application: ApplicationImpact): string {
     <main class="application-detail-panel" aria-label="${escapeHtml(application.name)} details">
       <button id="summary-view-button" class="detail-back-button" type="button">Today</button>
 
-      <section class="summary-intro">
-        <p class="eyebrow">Running</p>
-        <h1>${escapeHtml(application.name)}</h1>
-        <p>${escapeHtml(application.detail || application.impactLabel)}</p>
+      <section class="detail-hero">
+        <span class="detail-icon status-icon status-icon-browser" aria-hidden="true"></span>
+        <div class="summary-intro">
+          <p class="eyebrow">Running</p>
+          <h1>${escapeHtml(application.name)}</h1>
+          <p>${escapeHtml(application.detail || application.impactLabel)}</p>
+        </div>
       </section>
 
       <section class="summary-section">
@@ -397,22 +433,21 @@ function renderQuickCheckin(pulse: TodayPulse, _refreshing = false): void {
         <span class="companion-gear" aria-hidden="true">&#9881;</span>
 
         <div class="companion-hero">
-          <div class="pulse-ring" aria-label="System Pulse score ${pulse.systemScore}">
-            <div class="pulse-orb">
-              <span class="pulse-heart" aria-hidden="true">&hearts;</span>
-              <strong>${pulse.systemScore}</strong>
-            </div>
+          <div class="heart-score" aria-label="System Pulse score ${pulse.systemScore}">
+            <span class="heart-score-shape" aria-hidden="true">&#9825;</span>
+            <strong>${pulse.systemScore}</strong>
           </div>
 
           <div class="companion-copy">
             <h1>${companionHeadline(pulse.healthState)}</h1>
             <p>${companionDetailLine(pulse.healthState)}</p>
-
-            <div class="companion-time">
-              <span>Estimated uninterrupted work time</span>
-              <strong>${escapeHtml(pulse.flowRemainingLabel)}</strong>
-            </div>
           </div>
+        </div>
+
+        <div class="companion-time">
+          <span>You have</span>
+          <strong>${escapeHtml(pulse.flowRemainingLabel)}</strong>
+          <p>of uninterrupted work time</p>
         </div>
 
         <div class="companion-glance-section">
@@ -443,13 +478,27 @@ function renderToday(pulse: TodayPulse, _refreshing = false): void {
 
   appRoot.innerHTML = `
     <div class="shell today-shell" data-state="${pulse.healthState}">
-      ${selectedApplication ? applicationDetail(selectedApplication) : todaySummary(pulse)}
+      <section class="today-window" aria-label="System Pulse">
+        <header class="today-titlebar">
+          <span class="window-lights" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </span>
+          <span>System Pulse</span>
+          <button id="today-refresh-button" class="today-refresh-button" type="button" aria-label="Refresh">&#8635;</button>
+        </header>
+        <div class="today-window-body">
+          ${selectedApplication ? applicationDetail(selectedApplication) : todaySummary(pulse)}
+        </div>
+      </section>
     </div>
   `;
 
   document.querySelector<HTMLButtonElement>("#summary-view-button")?.addEventListener("click", () => {
     selectedApplicationId = null;
     renderToday(pulse);
+  });
+  document.querySelector<HTMLButtonElement>("#today-refresh-button")?.addEventListener("click", () => {
+    void loadToday({ keepExisting: true });
   });
   wireCareActions(pulse);
 }
