@@ -32,6 +32,7 @@ pub struct StorageSnapshot {
 pub struct ApplicationSnapshot {
     pub name: String,
     pub memory_bytes: u64,
+    pub cpu_percent: f32,
 }
 
 #[derive(Debug, Clone)]
@@ -43,6 +44,7 @@ pub struct BrowserHealthSnapshot {
 pub struct BrowserSnapshot {
     pub name: String,
     pub memory_bytes: u64,
+    pub cpu_percent: f32,
     pub process_count: u32,
     pub renderer_count: u32,
     pub renderer_memory_bytes: u64,
@@ -110,6 +112,7 @@ pub struct DomainHealth {
 pub struct ApplicationImpact {
     pub name: String,
     pub memory_display: String,
+    pub cpu_display: String,
     pub impact_label: String,
     pub detail: String,
     pub care_label: String,

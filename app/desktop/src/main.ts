@@ -17,6 +17,7 @@ type DomainHealth = {
 type ApplicationImpact = {
   name: string;
   memoryDisplay: string;
+  cpuDisplay: string;
   impactLabel: string;
   detail: string;
   careLabel: string;
@@ -165,12 +166,6 @@ function visibleApplicationOpportunities(pulse: TodayPulse): ApplicationImpact[]
     .slice(0, 3);
 }
 
-function protectedWorkNotes(pulse: TodayPulse): ApplicationImpact[] {
-  return pulse.topApplications
-    .filter((application) => application.protectedWork)
-    .slice(0, 2);
-}
-
 function dayGreeting(): string {
   const hour = new Date().getHours();
   if (hour < 12) return "Good morning";
@@ -223,24 +218,6 @@ function firstRecommendedApplication(pulse: TodayPulse): ApplicationImpact | und
   return visibleApplicationOpportunities(pulse)[0];
 }
 
-function primaryApplication(pulse: TodayPulse): ApplicationImpact | undefined {
-  return pulse.topApplications[0];
-}
-
-function applicationMetric(pulse: TodayPulse): string {
-  const application = primaryApplication(pulse);
-  return application ? `${application.name}: ${application.memoryDisplay}` : "No standout app";
-}
-
-function shortMetric(domain: DomainHealth): string {
-  if (domain.metricLabel.includes(" of ")) return domain.metricLabel.split(" of ")[0];
-  return domain.metricLabel || domain.value;
-}
-
-function availabilityMetric(domain: DomainHealth): string {
-  return domain.metricPercent ? `${domain.metricPercent} available` : shortMetric(domain);
-}
-
 function statusDetail(domain: DomainHealth, healthyDetail: string): string {
   if (domainNeedsCare(domain)) {
     return domain.detail || domain.headline || domain.value;
@@ -278,48 +255,16 @@ function todayStatusCards(pulse: TodayPulse): string {
   `;
 }
 
-function knowledgeItems(pulse: TodayPulse): KnowledgeItem[] {
-  const browser = pulse.browserHealth;
-  const items: KnowledgeItem[] = [];
-
-  protectedWorkNotes(pulse).forEach((application) => {
-    items.push({
-      label: `${application.name} is active`,
-      metric: `${application.memoryDisplay} RAM`,
-    });
-  });
-
-  if (browser && domainNeedsCare(browser)) {
-    items.push({ label: browser.headline, metric: shortMetric(browser) });
-  }
-
-  if (domainNeedsCare(pulse.applicationHealth)) {
-    items.push({ label: pulse.applicationHealth.headline, metric: applicationMetric(pulse) });
-  }
-
-  if (domainNeedsCare(pulse.memoryHealth)) {
-    items.push({ label: pulse.memoryHealth.headline, metric: shortMetric(pulse.memoryHealth) });
-  }
-
-  if (domainNeedsCare(pulse.storageHealth)) {
-    items.push({ label: pulse.storageHealth.headline, metric: availabilityMetric(pulse.storageHealth) });
-  } else if (pulse.storageHealth.value) {
-    items.push({ label: "Storage has room", metric: availabilityMetric(pulse.storageHealth) });
-  }
-
-  const seen = new Set<string>();
-  const uniqueItems = items
-    .filter((item) => {
-      if (!item.label || seen.has(item.label)) return false;
-      seen.add(item.label);
-      return true;
-    })
-    .slice(0, 4);
-  return uniqueItems.length ? uniqueItems : [{ label: "Nothing needs attention right now." }];
+function applicationUsageItems(pulse: TodayPulse): KnowledgeItem[] {
+  const items = pulse.topApplications.slice(0, 6).map((application) => ({
+    label: application.name,
+    metric: `${application.memoryDisplay} RAM · ${application.cpuDisplay} CPU`,
+  }));
+  return items.length ? items : [{ label: "No non-browser application is standing out." }];
 }
 
-function knowledgeList(pulse: TodayPulse): string {
-  const items = knowledgeItems(pulse)
+function applicationUsageList(pulse: TodayPulse): string {
+  const items = applicationUsageItems(pulse)
     .map(
       (item) => `
         <li>
@@ -331,8 +276,8 @@ function knowledgeList(pulse: TodayPulse): string {
     .join("");
   return `
     <section class="summary-section">
-      <h2>Things worth knowing</h2>
-      <ul class="summary-list">${items}</ul>
+      <h2>Application usage</h2>
+      <ul class="summary-list application-usage-list">${items}</ul>
     </section>
   `;
 }
@@ -359,7 +304,7 @@ function applicationCareTask(application: ApplicationImpact): string {
       <div class="care-task-copy">
         <p class="care-task-label">Application</p>
         <strong>${escapeHtml(application.name)}</strong>
-        <small>${escapeHtml(application.memoryDisplay)} RAM</small>
+        <small>${escapeHtml(application.memoryDisplay)} RAM · ${escapeHtml(application.cpuDisplay)} CPU</small>
       </div>
       <div class="care-task-actions">
         <button
@@ -381,20 +326,35 @@ function applicationCareTask(application: ApplicationImpact): string {
   `;
 }
 
-function browserCareTask(domain: DomainHealth, application: ApplicationImpact): string {
+function browserNameFromDomain(domain: DomainHealth): string {
+  const valueName = domain.value.split(":")[0]?.trim();
+  if (valueName && valueName !== domain.value) return valueName;
+  const headlineName = domain.headline.match(/^(.+?) (looks|is|may|needs)/)?.[1];
+  return headlineName || "Browser";
+}
+
+function browserCareTask(domain: DomainHealth): string {
+  const browserName = browserNameFromDomain(domain);
+  const actionKind = browserName === "Safari" ? "quitApp" : "restartApp";
+  const actionLabel = browserName === "Safari" ? "Quit" : "Restart";
   return `
     <div class="care-task">
       <span class="care-task-icon status-icon status-icon-browser" aria-hidden="true"></span>
       <div class="care-task-copy">
         <p class="care-task-label">Browser</p>
-        <strong>${escapeHtml(application.name)}</strong>
-        <small>${escapeHtml(shortMetric(domain))} RAM</small>
+        <strong>${escapeHtml(browserName)}</strong>
+        <small>${escapeHtml(domain.metricLabel || domain.value)}</small>
       </div>
       <div class="care-task-actions">
-        <button class="recommended-primary-button" type="button" data-care-action="${escapeHtml(actionId(application))}">
-          ${escapeHtml(primaryCareButtonLabel(application))}
+        <button
+          class="recommended-primary-button"
+          type="button"
+          data-browser-action="${escapeHtml(actionKind)}"
+          data-browser-target="${escapeHtml(browserName)}"
+        >
+          ${escapeHtml(actionLabel)}
         </button>
-        <button class="recommended-secondary-button" type="button" data-care-remind="${escapeHtml(actionId(application))}">
+        <button class="recommended-secondary-button" type="button">
           Later
         </button>
       </div>
@@ -422,7 +382,7 @@ function domainCareTask(
         <button class="recommended-primary-button" type="button" data-domain-action="${escapeHtml(actionKind)}">
           ${escapeHtml(actionLabel)}
         </button>
-        <button class="recommended-secondary-button" type="button" data-domain-action="${escapeHtml(actionKind)}">
+        <button class="recommended-secondary-button" type="button">
           ${escapeHtml(secondaryLabel)}
         </button>
       </div>
@@ -435,13 +395,13 @@ function careTasks(pulse: TodayPulse): string[] {
   const application = firstRecommendedApplication(pulse);
   if (application) tasks.push(applicationCareTask(application));
   if (domainNeedsCare(pulse.memoryHealth)) {
-    tasks.push(domainCareTask("Memory", "memory", pulse.memoryHealth, "Free Up", "Details", "openActivityMonitor"));
+    tasks.push(domainCareTask("Memory", "memory", pulse.memoryHealth, "Open", "Later", "openActivityMonitor"));
   }
-  if (application && pulse.browserHealth && domainNeedsCare(pulse.browserHealth)) {
-    tasks.push(browserCareTask(pulse.browserHealth, application));
+  if (pulse.browserHealth && domainNeedsCare(pulse.browserHealth)) {
+    tasks.push(browserCareTask(pulse.browserHealth));
   }
   if (domainNeedsCare(pulse.storageHealth)) {
-    tasks.push(domainCareTask("Storage", "storage", pulse.storageHealth, "Manage", "Details", "openStorageSettings"));
+    tasks.push(domainCareTask("Storage", "storage", pulse.storageHealth, "Open Settings", "Later", "openStorageSettings"));
   }
   return tasks.slice(0, 4);
 }
@@ -562,7 +522,7 @@ function todaySummary(pulse: TodayPulse): string {
       ${todayStatusCards(pulse)}
 
       <div class="today-panels">
-        ${knowledgeList(pulse)}
+        ${applicationUsageList(pulse)}
         ${recommendedCare(pulse)}
       </div>
 
@@ -743,6 +703,16 @@ function wireCareActions(pulse: TodayPulse): void {
     });
   });
 
+  document.querySelectorAll<HTMLButtonElement>("[data-browser-action]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const actionKind = button.dataset.browserAction;
+      const target = button.dataset.browserTarget;
+      if (actionKind && target) {
+        void performBrowserAction(actionKind, target);
+      }
+    });
+  });
+
   document.querySelectorAll<HTMLButtonElement>("[data-detail-action]").forEach((button) => {
     button.addEventListener("click", () => {
       selectedApplicationId = button.dataset.detailAction || null;
@@ -763,7 +733,9 @@ function wireCareActions(pulse: TodayPulse): void {
 async function performApplicationAction(application: ApplicationImpact): Promise<void> {
   const target = application.actionTarget || application.name;
   const confirmed = window.confirm(
-    `System Pulse will ask macOS to ${application.actionLabel.toLowerCase()} for ${target}. Continue?`,
+    application.actionKind === "openActivityMonitor"
+      ? "System Pulse will open Activity Monitor so you can review this safely. Continue?"
+      : `System Pulse will ask macOS to ${application.actionLabel.toLowerCase()} for ${target}. Continue?`,
   );
   if (!confirmed) return;
 
@@ -774,6 +746,28 @@ async function performApplicationAction(application: ApplicationImpact): Promise
   try {
     const message = await invoke<string>("perform_care_action", {
       actionKind: application.actionKind,
+      target,
+    });
+    careMessage = message;
+    await loadToday({ keepExisting: true });
+  } catch (error) {
+    careMessage = error instanceof Error ? error.message : String(error);
+    if (currentPulse) renderToday(currentPulse);
+  }
+}
+
+async function performBrowserAction(actionKind: string, target: string): Promise<void> {
+  const label = actionKind === "quitApp" ? "quit" : "restart";
+  const confirmed = window.confirm(`System Pulse will ask macOS to ${label} ${target}. Continue?`);
+  if (!confirmed) return;
+
+  selectedApplicationId = null;
+  careMessage = `Working on ${target}...`;
+  if (currentPulse) renderToday(currentPulse, true);
+
+  try {
+    const message = await invoke<string>("perform_care_action", {
+      actionKind,
       target,
     });
     careMessage = message;

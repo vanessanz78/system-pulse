@@ -125,32 +125,50 @@ fn collect_top_applications(
     total_memory_bytes: u64,
     processes: &[ProcessInfo],
 ) -> Vec<ApplicationSnapshot> {
-    let mut grouped: HashMap<String, u64> = HashMap::new();
+    let mut grouped: HashMap<String, (u64, f32)> = HashMap::new();
 
     for process in processes {
         if process.rss_bytes == 0 {
             continue;
         }
+        if browser_name(&process.command_name).is_some() {
+            continue;
+        }
         let name = normalize_application_name(&process.command_name);
-        *grouped.entry(name).or_insert(0) += process.rss_bytes;
+        let entry = grouped.entry(name).or_insert((0, 0.0));
+        entry.0 = entry.0.saturating_add(process.rss_bytes);
+        entry.1 += process.cpu_percent;
     }
 
     let mut applications = grouped
         .into_iter()
-        .filter(|(_, memory_bytes)| {
-            total_memory_bytes == 0 || (*memory_bytes as f64 / total_memory_bytes as f64) >= 0.005
+        .filter(|(_, (memory_bytes, cpu_percent))| {
+            total_memory_bytes == 0
+                || (*memory_bytes as f64 / total_memory_bytes as f64) >= 0.005
+                || *cpu_percent >= 1.0
         })
-        .map(|(name, memory_bytes)| ApplicationSnapshot { name, memory_bytes })
+        .map(|(name, (memory_bytes, cpu_percent))| ApplicationSnapshot {
+            name,
+            memory_bytes,
+            cpu_percent,
+        })
         .collect::<Vec<_>>();
 
-    applications.sort_by(|left, right| right.memory_bytes.cmp(&left.memory_bytes));
-    applications.truncate(6);
+    applications.sort_by(|left, right| {
+        right
+            .cpu_percent
+            .partial_cmp(&left.cpu_percent)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then(right.memory_bytes.cmp(&left.memory_bytes))
+    });
+    applications.truncate(8);
     applications
 }
 
 #[derive(Default)]
 struct BrowserAccumulator {
     memory_bytes: u64,
+    cpu_percent: f32,
     process_count: u32,
     renderer_count: u32,
     renderer_memory_bytes: u64,
@@ -167,6 +185,7 @@ fn collect_browser_health(processes: &[ProcessInfo]) -> BrowserHealthSnapshot {
         };
         let accumulator = browsers.entry(browser_name).or_default();
         accumulator.memory_bytes = accumulator.memory_bytes.saturating_add(process.rss_bytes);
+        accumulator.cpu_percent += process.cpu_percent;
         accumulator.process_count = accumulator.process_count.saturating_add(1);
         accumulator.uptime_seconds =
             max_optional(accumulator.uptime_seconds, process.elapsed_seconds);
@@ -186,6 +205,7 @@ fn collect_browser_health(processes: &[ProcessInfo]) -> BrowserHealthSnapshot {
         .map(|(name, accumulator)| BrowserSnapshot {
             name,
             memory_bytes: accumulator.memory_bytes,
+            cpu_percent: accumulator.cpu_percent,
             process_count: accumulator.process_count,
             renderer_count: accumulator.renderer_count,
             renderer_memory_bytes: accumulator.renderer_memory_bytes,
