@@ -52,10 +52,13 @@ if (!app) {
 }
 
 const appRoot = app;
+const APP_VERSION = "0.1.5";
+const AUTO_REFRESH_MS = 60_000;
 let currentPulse: TodayPulse | null = null;
 let isRefreshing = false;
 let currentView: ViewMode = "quick";
 let careMessage = "";
+let autoRefreshTimer: number | undefined;
 
 type CareMuteState = Record<
   string,
@@ -180,6 +183,12 @@ function quickSignal(label: string, domain: DomainHealth): string {
 function careMessageHtml(): string {
   if (!careMessage) return "";
   return `<p class="care-message" role="status">${escapeHtml(careMessage)}</p>`;
+}
+
+function liveStatusLine(pulse: TodayPulse, refreshing = false): string {
+  const checkedAt = formatCollectedAt(pulse.collectedAt);
+  if (refreshing) return `Refreshing local data. Last checked ${checkedAt}.`;
+  return `Live local check every minute. Last checked ${checkedAt}.`;
 }
 
 function visibleApplicationOpportunities(pulse: TodayPulse): ApplicationImpact[] {
@@ -355,19 +364,76 @@ function decisionLabel(domain: DomainHealth): string {
   return "Best reviewed at your next break";
 }
 
-function decisionCard(label: string, domain: DomainHealth): string {
+function statusClass(label: string): string {
+  const lower = label.toLowerCase();
+  if (lower.includes("recommended") || lower.includes("care")) return "needs-care";
+  if (lower.includes("break") || lower.includes("protect")) return "attention";
+  return "ok";
+}
+
+function statusCard(label: string, status: string, headline: string, detail: string, value = ""): string {
   return `
-    <section class="card decision-card">
+    <section class="card status-card ${statusClass(status)}">
       <div class="card-heading">
         <span>${escapeHtml(label)}</span>
-        <b>${escapeHtml(decisionLabel(domain))}</b>
+        <b>${escapeHtml(status)}</b>
       </div>
-      <h3>${escapeHtml(domain.headline)}</h3>
-      <p>${escapeHtml(domain.detail)}</p>
-      <details class="quiet-details">
-        <summary>Details</summary>
-        <p>${escapeHtml(domain.value)}</p>
-      </details>
+      <h3>${escapeHtml(headline)}</h3>
+      <p>${escapeHtml(detail)}</p>
+      ${value ? `<em>${escapeHtml(value)}</em>` : ""}
+    </section>
+  `;
+}
+
+function todayStatusGrid(pulse: TodayPulse, refreshing = false): string {
+  const browser = pulse.browserHealth ?? pulse.applicationHealth;
+  const nextStepStatus =
+    pulse.healthState === "healthy" ? "No action needed today" : "Recommended today";
+
+  return `
+    <section class="today-status-grid" aria-label="Today at a glance">
+      ${statusCard(
+        "Flow",
+        "Live",
+        `${pulse.flowRemainingLabel} uninterrupted work time`,
+        liveStatusLine(pulse, refreshing),
+        `v${APP_VERSION}`,
+      )}
+      ${statusCard(
+        "Next best step",
+        nextStepStatus,
+        immediateAction(pulse),
+        pulse.primaryExplanation,
+        pulse.estimatedAdditionalWorkLabel,
+      )}
+      ${statusCard(
+        "Browser",
+        decisionLabel(browser),
+        browser.headline,
+        browser.detail,
+        browser.value,
+      )}
+      ${statusCard(
+        "Applications",
+        decisionLabel(pulse.applicationHealth),
+        pulse.applicationHealth.headline,
+        pulse.applicationHealth.detail,
+        pulse.applicationHealth.value,
+      )}
+      ${statusCard(
+        "Memory",
+        decisionLabel(pulse.memoryHealth),
+        pulse.memoryHealth.headline,
+        pulse.memoryHealth.detail,
+        pulse.memoryHealth.value,
+      )}
+      ${statusCard(
+        "Storage",
+        decisionLabel(pulse.storageHealth),
+        pulse.storageHealth.headline,
+        pulse.storageHealth.detail,
+        pulse.storageHealth.value,
+      )}
     </section>
   `;
 }
@@ -425,7 +491,8 @@ function renderQuickCheckin(pulse: TodayPulse, refreshing = false): void {
           <span aria-hidden="true">&rsaquo;</span>
         </button>
 
-        <p class="quick-footnote">Local check only. Nothing changes on your Mac.</p>
+        <p class="quick-footnote">${escapeHtml(liveStatusLine(pulse, refreshing))}</p>
+        <p class="quick-footnote">Local check only. Nothing changes on your Mac. v${APP_VERSION}</p>
       </section>
     </main>
   `;
@@ -442,12 +509,6 @@ function renderQuickCheckin(pulse: TodayPulse, refreshing = false): void {
 
 function renderToday(pulse: TodayPulse, refreshing = false): void {
   const refreshLabel = refreshing ? "Refreshing..." : "Refresh";
-  const domainCards = [
-    decisionCard("Applications", pulse.applicationHealth),
-    decisionCard("Browser", pulse.browserHealth ?? pulse.applicationHealth),
-    decisionCard("Memory", pulse.memoryHealth),
-    decisionCard("Storage", pulse.storageHealth),
-  ].join("");
 
   appRoot.innerHTML = `
     <div class="shell today-shell" data-state="${pulse.healthState}">
@@ -459,49 +520,22 @@ function renderToday(pulse: TodayPulse, refreshing = false): void {
         <div>
           <p class="eyebrow">Today</p>
           <h1>${USER_NAME}'s Today</h1>
-          <p class="topbar-subtitle">A control panel for protecting momentum.</p>
+          <p class="topbar-subtitle">${escapeHtml(liveStatusLine(pulse, refreshing))}</p>
         </div>
         <div class="topbar-actions">
+          <span class="version-pill">v${APP_VERSION}</span>
           <span class="platform">${pulse.platform}</span>
           <button id="quick-view-button" type="button">Check-in</button>
           <button id="refresh-button" type="button" ${refreshing ? "disabled" : ""}>${refreshLabel}</button>
         </div>
       </header>
 
-      <section class="hero card">
-        <div class="hero-score">
-          <span class="heart large-heart" aria-hidden="true">&hearts;</span>
-          <strong>${pulse.systemScore}</strong>
-        </div>
-        <div class="hero-copy">
-          <p class="eyebrow">Can I keep working?</p>
-          <h2>${canKeepWorking(pulse.healthState)}</h2>
-          <p>${comfortLine(pulse.healthState)}</p>
-          <div class="hero-facts">
-            <span><b>Estimated uninterrupted work time</b> ${escapeHtml(pulse.flowRemainingLabel)}</span>
-            <span><b>Decision</b> ${escapeHtml(immediateAction(pulse))}</span>
-          </div>
-        </div>
-      </section>
-
-      <section class="decision-summary">
-        <section class="card next-step-card">
-          <p class="eyebrow">Next best step</p>
-          <h2>${escapeHtml(immediateAction(pulse))}</h2>
-          <p>${escapeHtml(pulse.primaryExplanation)}</p>
-          <div class="time-gain">
-            <span>Estimated benefit</span>
-            <strong>${escapeHtml(pulse.estimatedAdditionalWorkLabel)}</strong>
-          </div>
-        </section>
-        ${domainCards}
-      </section>
-
+      ${todayStatusGrid(pulse, refreshing)}
       ${todaysOpportunities(pulse)}
       ${localDetails(pulse)}
 
       <footer>
-        <span>Collected locally at ${escapeHtml(formatCollectedAt(pulse.collectedAt))}</span>
+        <span>${escapeHtml(liveStatusLine(pulse, refreshing))}</span>
         <span>No cloud. No account. No automatic optimisation.</span>
       </footer>
     </div>
@@ -656,13 +690,13 @@ async function updateTray(pulse: TodayPulse): Promise<void> {
   }
 }
 
-async function loadToday(options: { keepExisting?: boolean } = {}): Promise<void> {
+async function loadToday(options: { keepExisting?: boolean; quiet?: boolean } = {}): Promise<void> {
   if (isRefreshing) return;
   isRefreshing = true;
 
-  if (options.keepExisting && currentPulse) {
+  if (options.keepExisting && currentPulse && !options.quiet) {
     renderCurrentView(currentPulse, true);
-  } else {
+  } else if (!options.keepExisting && !options.quiet) {
     renderLoading();
   }
 
@@ -672,10 +706,22 @@ async function loadToday(options: { keepExisting?: boolean } = {}): Promise<void
     renderCurrentView(pulse);
     await updateTray(pulse);
   } catch (error) {
-    renderError(error instanceof Error ? error.message : String(error));
+    if (options.quiet && currentPulse) {
+      careMessage = "The last live check missed. System Pulse will try again shortly.";
+      renderCurrentView(currentPulse);
+    } else {
+      renderError(error instanceof Error ? error.message : String(error));
+    }
   } finally {
     isRefreshing = false;
   }
+}
+
+function startAutoRefresh(): void {
+  if (autoRefreshTimer !== undefined) return;
+  autoRefreshTimer = window.setInterval(() => {
+    void loadToday({ keepExisting: true, quiet: true });
+  }, AUTO_REFRESH_MS);
 }
 
 void listen("system-pulse-refresh", () => {
@@ -693,4 +739,13 @@ void listen("system-pulse-show-today", () => {
     renderToday(currentPulse);
   }
 });
+window.addEventListener("focus", () => {
+  void loadToday({ keepExisting: true, quiet: true });
+});
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) {
+    void loadToday({ keepExisting: true, quiet: true });
+  }
+});
+startAutoRefresh();
 void loadToday();

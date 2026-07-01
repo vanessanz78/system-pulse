@@ -160,8 +160,8 @@ fn escape_applescript(value: &str) -> String {
 
 fn show_today(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
-        let _ = window.set_min_size(Some(Size::Logical(LogicalSize::new(820.0, 640.0))));
-        let _ = window.set_size(Size::Logical(LogicalSize::new(960.0, 720.0)));
+        let _ = window.set_min_size(Some(Size::Logical(LogicalSize::new(1040.0, 720.0))));
+        let _ = window.set_size(Size::Logical(LogicalSize::new(1180.0, 820.0)));
         let _ = window.show();
         let _ = window.unminimize();
         let _ = window.set_focus();
