@@ -26,6 +26,8 @@ macOS UAT in progress: menu bar presence, quick check-in, Today, local collector
 
 The app now includes a Tauri/Rust backend, TypeScript frontend, local macOS collectors, and a PulseCore module that turns collector data into Today, Quick Check-in, and care-opportunity output.
 
+Current GitHub desktop artifacts are internal UAT builds. Public macOS distribution requires Apple Developer ID signing and notarization so users can download, install, and double-click the app without a Terminal workaround.
+
 Durable handoff notes:
 
 - [Founding Engineering Handover](docs/00-Founding-Engineering-Handover.md)
@@ -33,6 +35,7 @@ Durable handoff notes:
 - [Founding Engineer Readiness Note](docs/18-Founding-Engineer-Readiness.md)
 - [The Three Layers of PulseCore](docs/22-PulseCore-Layers.md)
 - [Desktop Build And Download](docs/23-Desktop-Build-And-Download.md)
+- [macOS Release Signing And Notarization](docs/34-macOS-Release-Signing-And-Notarization.md)
 - [Decision Architecture](docs/33-Decision-Architecture.md)
 
 ## Repository Structure
