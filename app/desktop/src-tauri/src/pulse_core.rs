@@ -378,19 +378,19 @@ fn primary_recommendation(
 
         Recommendation {
             text: "Free memory at your next natural break.".to_string(),
-            explanation: "RAM and swap are close to reserve. Smallest action: close the heaviest safe app after this thought. Expected interruption: 30 seconds to 2 minutes. Expected benefit: more room for app switching.",
+            explanation: "RAM and swap are close to reserve. Smallest action: close the heaviest safe app after this thought. Expected interruption: 30 seconds to 2 minutes. Expected benefit: more room for app switching.".to_string(),
             estimated_additional_work_label: "+20 minutes".to_string(),
         }
     } else if cpu_score <= disk_score && cpu_score <= storage_score {
         Recommendation {
             text: "Let the busy app settle before opening more work.".to_string(),
-            explanation: "Processor reserve is low. Smallest action: pause new heavy apps until the current spike drops. Expected interruption: none. Expected benefit: fewer slow launches and less beachball risk.",
+            explanation: "Processor reserve is low. Smallest action: pause new heavy apps until the current spike drops. Expected interruption: none. Expected benefit: fewer slow launches and less beachball risk.".to_string(),
             estimated_additional_work_label: "+15 minutes".to_string(),
         }
     } else if disk_score <= storage_score {
         Recommendation {
             text: "Let disk activity finish before changing apps.".to_string(),
-            explanation: "The disk is busy right now. Smallest action: wait briefly rather than interrupting a write, sync, or indexing task. Expected interruption: under 1 minute. Expected benefit: smoother app launches after the disk settles.",
+            explanation: "The disk is busy right now. Smallest action: wait briefly rather than interrupting a write, sync, or indexing task. Expected interruption: under 1 minute. Expected benefit: smoother app launches after the disk settles.".to_string(),
             estimated_additional_work_label: "+10 minutes".to_string(),
         }
     } else if window_server_score < browser_score
@@ -399,13 +399,13 @@ fn primary_recommendation(
     {
         Recommendation {
             text: "Finish this task, then tidy windows before restarting the Mac.".to_string(),
-            explanation: "Desktop pressure can make the whole Mac feel heavy. Smallest action: close unused windows first and restart only if the Mac still feels stuck. Expected interruption: 1 to 5 minutes. Expected benefit: smoother desktop movement.",
+            explanation: "Desktop pressure can make the whole Mac feel heavy. Smallest action: close unused windows first and restart only if the Mac still feels stuck. Expected interruption: 1 to 5 minutes. Expected benefit: smoother desktop movement.".to_string(),
             estimated_additional_work_label: "+20 minutes".to_string(),
         }
     } else {
         Recommendation {
             text: "Review storage when you have a quiet moment.".to_string(),
-            explanation: "Storage does not need to interrupt this second. Smallest action: use a quiet moment to clear safe temporary files or old downloads. Expected interruption: a few minutes. Expected benefit: protects caches, updates, and app reliability.",
+            explanation: "Storage does not need to interrupt this second. Smallest action: use a quiet moment to clear safe temporary files or old downloads. Expected interruption: a few minutes. Expected benefit: protects caches, updates, and app reliability.".to_string(),
             estimated_additional_work_label: "+15 minutes".to_string(),
         }
     }
@@ -883,7 +883,7 @@ fn application_impacts(snapshot: &SystemSnapshot) -> Vec<ApplicationImpact> {
             } else if index == 0 && is_window_server && app_score < 58 {
                 (
                     "No direct action yet".to_string(),
-                    "Desktop responsiveness is doing unusual work. Smallest action: close unused windows after this task. Restart the Mac only if smaller steps do not help.",
+                    "Desktop responsiveness is doing unusual work. Smallest action: close unused windows after this task. Restart the Mac only if smaller steps do not help.".to_string(),
                     "+10 minutes".to_string(),
                     "none".to_string(),
                     String::new(),
