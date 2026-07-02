@@ -305,6 +305,8 @@ function applicationCareTask(application: ApplicationImpact): string {
         <p class="care-task-label">Application</p>
         <strong>${escapeHtml(application.name)}</strong>
         <small>${escapeHtml(application.memoryDisplay)} RAM · ${escapeHtml(application.cpuDisplay)} CPU</small>
+        <p class="care-task-detail">${escapeHtml(application.careDetail)}</p>
+        <p class="care-task-benefit">Expected benefit ${escapeHtml(application.careEstimatedImprovement)}</p>
       </div>
       <div class="care-task-actions">
         <button
@@ -344,6 +346,8 @@ function browserCareTask(domain: DomainHealth): string {
         <p class="care-task-label">Browser</p>
         <strong>${escapeHtml(browserName)}</strong>
         <small>${escapeHtml(domain.metricLabel || domain.value)}</small>
+        <p class="care-task-detail">${escapeHtml(domain.detail)}</p>
+        <p class="care-task-benefit">Expected interruption about 20 seconds · expected benefit +35 minutes</p>
       </div>
       <div class="care-task-actions">
         <button
@@ -373,6 +377,8 @@ function domainCareTask(
         <p class="care-task-label">${escapeHtml(label)}</p>
         <strong>${escapeHtml(domain.headline)}</strong>
         <small>${escapeHtml(domain.metricLabel || domain.value)}</small>
+        <p class="care-task-detail">${escapeHtml(domain.detail)}</p>
+        <p class="care-task-benefit">Maintenance, not an immediate flow interruption</p>
       </div>
       <div class="care-task-actions">
         <button class="recommended-primary-button" type="button" data-domain-action="${escapeHtml(actionKind)}">
@@ -457,7 +463,8 @@ function recommendedCare(pulse: TodayPulse): string {
   if (tasks.length) {
     return `
       <section class="summary-section care-panel attention-panel">
-        <p class="panel-kicker recommended-kicker"><span aria-hidden="true">&#9733;</span> Needs attention</p>
+        <p class="panel-kicker recommended-kicker"><span aria-hidden="true">&#9733;</span> Recovery plan</p>
+        <p class="care-plan-intro">Least disruption first. Only the useful step is shown.</p>
         ${careMessageHtml()}
         <div class="care-task-list">
           ${tasks.join("")}
@@ -469,15 +476,15 @@ function recommendedCare(pulse: TodayPulse): string {
   if (pulse.healthState !== "healthy" || pulse.primaryRecommendation !== "No action needed right now.") {
     return `
       <section class="summary-section care-panel attention-panel">
-        <p class="panel-kicker recommended-kicker"><span aria-hidden="true">&#9733;</span> Recommended care</p>
+        <p class="panel-kicker recommended-kicker"><span aria-hidden="true">&#9733;</span> Recovery plan</p>
         ${careMessageHtml()}
         <div class="decision-care-summary">
-          <p class="care-task-label">Problem</p>
+          <p class="care-task-label">What is happening</p>
           <strong>${escapeHtml(pulse.primaryRecommendation)}</strong>
           <p>${escapeHtml(pulse.primaryExplanation)}</p>
           <p class="care-task-label">Estimated benefit</p>
           <strong>${escapeHtml(pulse.estimatedAdditionalWorkLabel)}</strong>
-          <p class="summary-answer">No safe one-click action right now. Finish what you're doing first.</p>
+          <p class="summary-answer">No safe one-click action yet. Finish what you're doing first.</p>
         </div>
       </section>
     `;

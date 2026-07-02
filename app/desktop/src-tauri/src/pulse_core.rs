@@ -302,7 +302,7 @@ fn primary_recommendation(
     if system_score >= 58 {
         return Recommendation {
             text: "No action needed right now.".to_string(),
-            explanation: "Nothing looks close enough to reserve to interrupt your work.".to_string(),
+            explanation: "Nothing is close enough to reserve to interrupt your work. Smallest action: keep working. Expected interruption: none. Expected benefit: protect momentum.".to_string(),
             estimated_additional_work_label: "+0 minutes".to_string(),
         };
     }
@@ -326,17 +326,17 @@ fn primary_recommendation(
         if let Some(application) = snapshot.applications.first() {
             if application.name.to_lowercase().contains("codex") {
                 return Recommendation {
-                    text: "Keep Codex running and review it after this task.".to_string(),
-                    explanation: "Codex is active work. System Pulse should protect the flow and only suggest care once your current task is safe.".to_string(),
+                    text: "Keep Codex running while this task is active.".to_string(),
+                    explanation: "Codex is doing your current work. Smallest action: finish the thought first, then review inactive chats or windows. Expected interruption now: none. Expected benefit: avoid losing flow.".to_string(),
                     estimated_additional_work_label: "+0 minutes".to_string(),
                 };
             }
 
             if application.name == "WindowServer" {
                 return Recommendation {
-                    text: "Restart your Mac when your work is saved.".to_string(),
-                    explanation: "This can help if the whole desktop starts feeling heavy, but it should wait until your work is safe.".to_string(),
-                    estimated_additional_work_label: "+45 minutes".to_string(),
+                    text: "Let the desktop settle before opening more heavy apps.".to_string(),
+                    explanation: "Desktop responsiveness is doing unusual work. Smallest action: pause window switching and close unused windows after the current task. Expected interruption: under 1 minute. Expected benefit: smoother app switching without restarting the Mac.".to_string(),
+                    estimated_additional_work_label: "+10 minutes".to_string(),
                 };
             }
 
@@ -344,7 +344,7 @@ fn primary_recommendation(
                 return Recommendation {
                     text: format!("Restart {} when you are finished with it.", application.name),
                     explanation: format!(
-                        "{} is using enough processor or memory to affect smoothness. Wait until it is not doing important work.",
+                        "{} is using enough processor or memory to affect smoothness. Smallest action: restart only this app at a natural break. Expected interruption: about 20 seconds. Expected benefit: the next work block should feel lighter.",
                         application.name
                     ),
                     estimated_additional_work_label: "+25 minutes".to_string(),
@@ -354,7 +354,7 @@ fn primary_recommendation(
             return Recommendation {
                 text: format!("Let {} settle before opening another heavy app.", application.name),
                 explanation: format!(
-                    "{} is using enough processor or memory to explain sluggishness, but there is no safe one-click action for it yet.",
+                    "{} is using enough processor or memory to explain sluggishness. Smallest action: wait for it to finish active work before adding more load. Expected interruption: none right now. Expected benefit: avoids interrupting work that may still be saving or processing.",
                     application.name
                 ),
                 estimated_additional_work_label: "+0 minutes".to_string(),
@@ -368,7 +368,7 @@ fn primary_recommendation(
                 return Recommendation {
                     text: format!("Restart {} when your current thought is safe.", browser.name),
                     explanation: format!(
-                        "{} is the quickest way to free a meaningful amount of RAM without restarting the whole Mac.",
+                        "{} is the quickest safe way to free a meaningful amount of RAM. Smallest action: restart the browser only, not Codex or the Mac. Expected interruption: about 20 seconds. Expected benefit: a smoother next block.",
                         browser.name
                     ),
                     estimated_additional_work_label: "+35 minutes".to_string(),
@@ -378,19 +378,19 @@ fn primary_recommendation(
 
         Recommendation {
             text: "Free memory at your next natural break.".to_string(),
-            explanation: "RAM and swap are close to reserve. Closing the heaviest safe app is the lowest-disruption care step.".to_string(),
+            explanation: "RAM and swap are close to reserve. Smallest action: close the heaviest safe app after this thought. Expected interruption: 30 seconds to 2 minutes. Expected benefit: more room for app switching.",
             estimated_additional_work_label: "+20 minutes".to_string(),
         }
     } else if cpu_score <= disk_score && cpu_score <= storage_score {
         Recommendation {
-            text: "Let the busy app settle, then close it if the Mac stays heavy.".to_string(),
-            explanation: "Processor reserve is low. System Pulse is watching for the app causing it and will only show a direct action when it is safe.".to_string(),
+            text: "Let the busy app settle before opening more work.".to_string(),
+            explanation: "Processor reserve is low. Smallest action: pause new heavy apps until the current spike drops. Expected interruption: none. Expected benefit: fewer slow launches and less beachball risk.",
             estimated_additional_work_label: "+15 minutes".to_string(),
         }
     } else if disk_score <= storage_score {
         Recommendation {
             text: "Let disk activity finish before changing apps.".to_string(),
-            explanation: "The disk is busy right now. Waiting briefly is safer than interrupting a write or indexing task.".to_string(),
+            explanation: "The disk is busy right now. Smallest action: wait briefly rather than interrupting a write, sync, or indexing task. Expected interruption: under 1 minute. Expected benefit: smoother app launches after the disk settles.",
             estimated_additional_work_label: "+10 minutes".to_string(),
         }
     } else if window_server_score < browser_score
@@ -398,14 +398,14 @@ fn primary_recommendation(
         && window_server_score <= storage_score
     {
         Recommendation {
-            text: "Finish this task, then restart your Mac if it still feels heavy.".to_string(),
-            explanation: "The lowest-interruption choice is to keep working now and only restart after your active work is safe.".to_string(),
-            estimated_additional_work_label: "+45 minutes".to_string(),
+            text: "Finish this task, then tidy windows before restarting the Mac.".to_string(),
+            explanation: "Desktop pressure can make the whole Mac feel heavy. Smallest action: close unused windows first and restart only if the Mac still feels stuck. Expected interruption: 1 to 5 minutes. Expected benefit: smoother desktop movement.",
+            estimated_additional_work_label: "+20 minutes".to_string(),
         }
     } else {
         Recommendation {
             text: "Review storage when you have a quiet moment.".to_string(),
-            explanation: "Storage does not need to interrupt you this second, but making room later can protect smoother work.".to_string(),
+            explanation: "Storage does not need to interrupt this second. Smallest action: use a quiet moment to clear safe temporary files or old downloads. Expected interruption: a few minutes. Expected benefit: protects caches, updates, and app reliability.",
             estimated_additional_work_label: "+15 minutes".to_string(),
         }
     }
@@ -839,7 +839,7 @@ fn application_impacts(snapshot: &SystemSnapshot) -> Vec<ApplicationImpact> {
             ) = if is_codex {
                 (
                     "No recommendation".to_string(),
-                    "PulseCore detected active work. Restarting now would interrupt your workflow, so System Pulse will stay quiet unless care becomes worthwhile later.".to_string(),
+                    "Codex is active work. Smallest action: keep it running and archive inactive conversations later if you need more breathing room. Expected interruption now: none.",
                     "+0 minutes".to_string(),
                     "none".to_string(),
                     String::new(),
@@ -872,7 +872,7 @@ fn application_impacts(snapshot: &SystemSnapshot) -> Vec<ApplicationImpact> {
             } else if index == 0 && is_finder && app_score < 58 {
                 (
                     "Restart Finder at your next break".to_string(),
-                    "Finder can sometimes make window movement and file browsing feel heavier. Restarting Finder is usually quick and does not restart your Mac.".to_string(),
+                    "Finder can make window movement and file browsing feel heavier. Smallest action: restart Finder only, not the Mac. Expected interruption: about 5 seconds.",
                     "+5 minutes".to_string(),
                     "restartFinder".to_string(),
                     "Finder".to_string(),
@@ -883,7 +883,7 @@ fn application_impacts(snapshot: &SystemSnapshot) -> Vec<ApplicationImpact> {
             } else if index == 0 && is_window_server && app_score < 58 {
                 (
                     "No direct action yet".to_string(),
-                    "Desktop responsiveness is doing unusual work. Keep working for now, then restart the Mac only after active work is saved if it stays heavy.".to_string(),
+                    "Desktop responsiveness is doing unusual work. Smallest action: close unused windows after this task. Restart the Mac only if smaller steps do not help.",
                     "+10 minutes".to_string(),
                     "none".to_string(),
                     String::new(),
@@ -895,7 +895,7 @@ fn application_impacts(snapshot: &SystemSnapshot) -> Vec<ApplicationImpact> {
                 (
                     format!("Restart {display_name} when finished"),
                     format!(
-                        "{display_name} is carrying a noticeable amount of work. Restarting it after your current task may make the next work block feel smoother."
+                        "{display_name} is carrying noticeable work. Smallest action: restart only this app after the current task. Expected interruption: about 20 seconds."
                     ),
                     "+25 minutes".to_string(),
                     "restartApp".to_string(),
@@ -908,7 +908,7 @@ fn application_impacts(snapshot: &SystemSnapshot) -> Vec<ApplicationImpact> {
                 (
                     format!("Review {display_name} when this task is safe"),
                     format!(
-                        "{display_name} is using enough RAM or processor time to affect smoothness, but System Pulse does not have a safe one-click action for it yet."
+                        "{display_name} is using enough RAM or processor time to affect smoothness. Smallest action: let it finish or close it manually when your work is safe."
                     ),
                     "+10 minutes".to_string(),
                     "none".to_string(),
@@ -1013,11 +1013,11 @@ fn safe_restart_target(name: &str) -> bool {
 
 fn browser_care_detail(name: &str) -> String {
     if name == "Safari" {
-        return "Safari can hold onto tab and page work over long sessions. Quitting it at a natural break can free that work without interrupting what you are doing now.".to_string();
+        return "Safari is holding browser work in memory. Smallest action: quit Safari at a natural break. Expected interruption: about 10 seconds.".to_string();
     }
 
     format!(
-        "{name} gradually accumulates browser processes over long sessions. This does not usually cause problems immediately, but it can begin making your Mac feel less responsive over time."
+        "{name} is carrying tab and renderer work. Smallest action: restart only the browser at a natural break. Expected interruption: about 20 seconds."
     )
 }
 
@@ -1028,7 +1028,7 @@ fn browser_recommendation_explanation(browser: &BrowserSnapshot) -> String {
         .map(|duration| format!(" It has been running for {duration}."))
         .unwrap_or_default();
     format!(
-        "{} is carrying a lot of today's browser work.{} Restarting {} at a natural break would likely make things feel smoother.",
+        "{} is carrying a lot of today's browser work.{} Smallest action: restart only {} at a natural break. Expected interruption: about 20 seconds. Expected benefit: likely smoother browsing and app switching.",
         browser.name, uptime, browser.name
     )
 }

@@ -311,3 +311,57 @@ UAT for the next build:
 3. Confirm Application usage lists user-opened apps only and does not show System Pulse, `mdworker_shared`, `corespeechd`, `trustd`, or other internal services.
 4. Confirm Browser reports browser memory, processor use, processes, and renderers without duplicating Chrome under Applications.
 5. Confirm Recommended care never shows an Activity Monitor button or any other button that does nothing.
+
+## Architect Update 005 - Operations Manager
+
+Date: 2 July 2026
+
+System Pulse is not a system monitor. It is an Operations Manager whose only goal is protecting the user's momentum.
+
+The product question is not "What's wrong with the computer?"
+
+The product question is "How can I keep working?"
+
+Core direction:
+
+- The score is not the product.
+- The graphs are not the product.
+- The actions are the product.
+- Every screen should help Vanessa stay in flow with the smallest possible interruption.
+
+Every recommendation must be ordered from least disruption to most disruption:
+
+1. Quick wins that take seconds and do not interrupt active thought.
+2. Short app-level recovery, such as restarting a browser at a natural break.
+3. Maintenance recovery, such as clearing local clutter, archiving inactive work, or freeing disk space.
+4. Restart Codex or restart the Mac only when earlier steps cannot recover enough performance.
+
+Never recommend restarting the Mac first.
+
+Never recommend restarting Codex first.
+
+Do not send Vanessa to Activity Monitor as the answer. System Pulse should interpret Activity Monitor-style signals automatically and translate them into a plain recovery step.
+
+Every recommendation must answer:
+
+1. What is happening?
+2. Why does it matter?
+3. What is the smallest action?
+4. What benefit should Vanessa expect?
+
+Implementation direction:
+
+- Today should present a recovery plan, not a diagnostic panel.
+- Visible actions must be real, one-click care actions already wired in the app.
+- If System Pulse cannot safely perform an action yet, show calm guidance without a fake button.
+- Application usage should list recognisable user applications only.
+- Browser work stays under Browser, not Applications.
+- Storage belongs in maintenance unless disk space or disk activity is urgent enough to affect flow.
+
+UAT for the next build:
+
+1. Confirm the right panel says "Recovery plan" when care is useful.
+2. Confirm recommendations read as least-disruption actions, not technical diagnosis.
+3. Confirm each recommendation explains the expected interruption and expected benefit.
+4. Confirm Codex is protected active work and is not offered as a restart action.
+5. Confirm the Mac restart path appears only as guidance after smaller recovery steps are exhausted.

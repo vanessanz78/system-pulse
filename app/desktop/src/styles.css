@@ -906,6 +906,12 @@ p {
   gap: 0.7rem;
 }
 
+.care-plan-intro {
+  color: rgba(247, 250, 248, 0.72);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
 .decision-care-summary {
   display: grid;
   gap: 0.45rem;
@@ -968,6 +974,21 @@ p {
 .care-task small {
   color: var(--muted);
   font-size: 0.8rem;
+}
+
+.care-task-detail {
+  color: rgba(247, 250, 248, 0.76);
+  font-size: 0.8rem;
+  line-height: 1.38;
+  margin-top: 0.14rem;
+}
+
+.care-task-benefit {
+  color: var(--healthy);
+  font-size: 0.78rem;
+  font-weight: 620;
+  line-height: 1.3;
+  margin-top: 0.08rem;
 }
 
 .care-task-actions {
