@@ -1,6 +1,6 @@
 use crate::models::{
-    ApplicationSnapshot, BrowserHealthSnapshot, BrowserSnapshot, MemorySnapshot,
-    RendererHealthSnapshot, StorageSnapshot, SystemSnapshot, WindowServerSnapshot,
+    ApplicationSnapshot, BrowserHealthSnapshot, BrowserSnapshot, CpuSnapshot, DiskActivitySnapshot,
+    MemorySnapshot, RendererHealthSnapshot, StorageSnapshot, SystemSnapshot, WindowServerSnapshot,
 };
 use std::collections::HashMap;
 use std::path::Path;
@@ -8,8 +8,10 @@ use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub fn collect_system_snapshot() -> Result<SystemSnapshot, String> {
+    let cpu = collect_cpu().unwrap_or_default();
     let memory = collect_memory()?;
     let storage = collect_storage()?;
+    let disk_activity = collect_disk_activity().unwrap_or_default();
     let processes = collect_processes()?;
     let applications = collect_top_applications(memory.total_bytes, &processes);
     let browser = collect_browser_health(&processes);
@@ -19,8 +21,10 @@ pub fn collect_system_snapshot() -> Result<SystemSnapshot, String> {
     Ok(SystemSnapshot {
         collected_at: collected_at()?,
         platform: "macOS".to_string(),
+        cpu,
         memory,
         storage,
+        disk_activity,
         applications,
         browser,
         renderers,
@@ -28,12 +32,36 @@ pub fn collect_system_snapshot() -> Result<SystemSnapshot, String> {
     })
 }
 
+impl Default for CpuSnapshot {
+    fn default() -> Self {
+        Self {
+            user_percent: 0.0,
+            system_percent: 0.0,
+            idle_percent: 100.0,
+        }
+    }
+}
+
+impl Default for DiskActivitySnapshot {
+    fn default() -> Self {
+        Self {
+            megabytes_per_second: 0.0,
+        }
+    }
+}
+
 #[derive(Debug)]
 struct ProcessInfo {
     rss_bytes: u64,
     cpu_percent: f32,
     elapsed_seconds: Option<u64>,
+    user_name: String,
     command_name: String,
+}
+
+fn collect_cpu() -> Result<CpuSnapshot, String> {
+    let output = run_command("top", &["-l", "1", "-n", "0"])?;
+    parse_cpu_snapshot(&output).ok_or_else(|| "Could not read CPU reserve.".to_string())
 }
 
 fn collect_memory() -> Result<MemorySnapshot, String> {
@@ -48,6 +76,7 @@ fn collect_memory() -> Result<MemorySnapshot, String> {
     let inactive_pages = parse_vm_pages(&vm_stat, "Pages inactive");
     let speculative_pages = parse_vm_pages(&vm_stat, "Pages speculative");
     let compressed_pages = parse_vm_pages(&vm_stat, "Pages occupied by compressor");
+    let (swap_total_bytes, swap_used_bytes) = collect_swap_usage().unwrap_or((0, 0));
 
     let available_bytes = free_pages
         .saturating_add(inactive_pages)
@@ -60,6 +89,8 @@ fn collect_memory() -> Result<MemorySnapshot, String> {
         available_bytes,
         used_bytes,
         compressed_bytes: compressed_pages.saturating_mul(page_size),
+        swap_total_bytes,
+        swap_used_bytes,
     })
 }
 
@@ -87,8 +118,28 @@ fn collect_storage() -> Result<StorageSnapshot, String> {
     })
 }
 
+fn collect_disk_activity() -> Result<DiskActivitySnapshot, String> {
+    let output = run_command("iostat", &["-d", "disk0", "1", "2"])?;
+    let megabytes_per_second = output
+        .lines()
+        .filter_map(parse_iostat_mbps)
+        .last()
+        .unwrap_or(0.0);
+
+    Ok(DiskActivitySnapshot {
+        megabytes_per_second,
+    })
+}
+
+fn collect_swap_usage() -> Result<(u64, u64), String> {
+    let output = run_command("sysctl", &["vm.swapusage"])?;
+    let total = parse_swap_bytes(&output, "total").unwrap_or(0);
+    let used = parse_swap_bytes(&output, "used").unwrap_or(0);
+    Ok((total, used))
+}
+
 fn collect_processes() -> Result<Vec<ProcessInfo>, String> {
-    let output = run_command("ps", &["-axo", "pid=,rss=,pcpu=,etime=,comm="])?;
+    let output = run_command("ps", &["-axo", "pid=,rss=,pcpu=,etime=,user=,comm="])?;
     let mut processes = Vec::new();
 
     for line in output.lines() {
@@ -103,6 +154,9 @@ fn collect_processes() -> Result<Vec<ProcessInfo>, String> {
         let Some(elapsed) = parts.next() else {
             continue;
         };
+        let Some(user_name) = parts.next() else {
+            continue;
+        };
         let command_name = parts.collect::<Vec<_>>().join(" ");
         if command_name.is_empty() {
             continue;
@@ -114,6 +168,7 @@ fn collect_processes() -> Result<Vec<ProcessInfo>, String> {
             rss_bytes,
             cpu_percent,
             elapsed_seconds: parse_elapsed_seconds(elapsed),
+            user_name: user_name.to_string(),
             command_name,
         });
     }
@@ -129,6 +184,9 @@ fn collect_top_applications(
 
     for process in processes {
         if process.rss_bytes == 0 {
+            continue;
+        }
+        if !belongs_to_current_user(process) {
             continue;
         }
         if browser_name(&process.command_name).is_some() {
@@ -163,6 +221,12 @@ fn collect_top_applications(
     });
     applications.truncate(8);
     applications
+}
+
+fn belongs_to_current_user(process: &ProcessInfo) -> bool {
+    std::env::var("USER")
+        .map(|user_name| process.user_name == user_name)
+        .unwrap_or(true)
 }
 
 #[derive(Default)]
@@ -369,6 +433,29 @@ fn parse_page_size(vm_stat: &str) -> Option<u64> {
     first_line[start..end].parse::<u64>().ok()
 }
 
+fn parse_cpu_snapshot(output: &str) -> Option<CpuSnapshot> {
+    let line = output
+        .lines()
+        .find(|line| line.trim_start().starts_with("CPU usage:"))?;
+
+    Some(CpuSnapshot {
+        user_percent: parse_cpu_component(line, "user")?,
+        system_percent: parse_cpu_component(line, "sys")?,
+        idle_percent: parse_cpu_component(line, "idle")?,
+    })
+}
+
+fn parse_cpu_component(line: &str, label: &str) -> Option<f32> {
+    let marker = format!("% {label}");
+    let marker_index = line.find(&marker)?;
+    let before_marker = &line[..marker_index];
+    let start = before_marker
+        .rfind(|character: char| character == ' ' || character == ':')
+        .map(|index| index + 1)
+        .unwrap_or(0);
+    before_marker[start..].trim().parse::<f32>().ok()
+}
+
 fn parse_vm_pages(vm_stat: &str, label: &str) -> u64 {
     vm_stat
         .lines()
@@ -382,6 +469,29 @@ fn parse_vm_pages(vm_stat: &str, label: &str) -> u64 {
         })
         .and_then(|digits| digits.parse::<u64>().ok())
         .unwrap_or(0)
+}
+
+fn parse_swap_bytes(output: &str, label: &str) -> Option<u64> {
+    let marker = format!("{label} = ");
+    let start = output.find(&marker)? + marker.len();
+    let rest = output[start..].trim_start();
+    let number_end = rest
+        .find(|character: char| !character.is_ascii_digit() && character != '.')
+        .unwrap_or(rest.len());
+    let number = rest[..number_end].parse::<f64>().ok()?;
+    let unit = rest[number_end..].trim_start().chars().next().unwrap_or('M');
+    let multiplier = match unit {
+        'G' | 'g' => 1_073_741_824.0,
+        'M' | 'm' => 1_048_576.0,
+        'K' | 'k' => 1024.0,
+        _ => 1.0,
+    };
+    Some((number * multiplier).round() as u64)
+}
+
+fn parse_iostat_mbps(line: &str) -> Option<f32> {
+    let fields = line.split_whitespace().collect::<Vec<_>>();
+    fields.last()?.parse::<f32>().ok()
 }
 
 fn parse_kib(value: &str, label: &str) -> Result<u64, String> {

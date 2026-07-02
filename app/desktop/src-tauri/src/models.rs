@@ -4,12 +4,21 @@ use serde::Serialize;
 pub struct SystemSnapshot {
     pub collected_at: String,
     pub platform: String,
+    pub cpu: CpuSnapshot,
     pub memory: MemorySnapshot,
     pub storage: StorageSnapshot,
+    pub disk_activity: DiskActivitySnapshot,
     pub applications: Vec<ApplicationSnapshot>,
     pub browser: BrowserHealthSnapshot,
     pub renderers: RendererHealthSnapshot,
     pub window_server: Option<WindowServerSnapshot>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CpuSnapshot {
+    pub user_percent: f32,
+    pub system_percent: f32,
+    pub idle_percent: f32,
 }
 
 #[derive(Debug, Clone)]
@@ -18,6 +27,8 @@ pub struct MemorySnapshot {
     pub available_bytes: u64,
     pub used_bytes: u64,
     pub compressed_bytes: u64,
+    pub swap_total_bytes: u64,
+    pub swap_used_bytes: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -26,6 +37,11 @@ pub struct StorageSnapshot {
     pub total_bytes: u64,
     pub available_bytes: u64,
     pub used_bytes: u64,
+}
+
+#[derive(Debug, Clone)]
+pub struct DiskActivitySnapshot {
+    pub megabytes_per_second: f32,
 }
 
 #[derive(Debug, Clone)]

@@ -3,15 +3,19 @@ use crate::models::{
 };
 
 pub fn evaluate(snapshot: SystemSnapshot) -> TodayPulse {
+    let cpu_score = score_cpu(&snapshot);
     let memory_score = score_memory(&snapshot);
     let storage_score = score_storage(&snapshot);
+    let disk_score = score_disk_activity(&snapshot);
     let application_score = score_applications(&snapshot);
     let browser_score = score_browser(&snapshot);
     let renderer_score = score_renderers(&snapshot);
     let window_server_score = score_window_server(&snapshot);
     let system_score = weighted_score(
+        cpu_score,
         memory_score,
         storage_score,
+        disk_score,
         application_score,
         browser_score,
         renderer_score,
@@ -25,8 +29,10 @@ pub fn evaluate(snapshot: SystemSnapshot) -> TodayPulse {
     let application_health = application_health(&snapshot, application_score);
     let recommendation = primary_recommendation(
         &snapshot,
+        cpu_score,
         memory_score,
         storage_score,
+        disk_score,
         application_score,
         browser_score,
         renderer_score,
@@ -35,8 +41,10 @@ pub fn evaluate(snapshot: SystemSnapshot) -> TodayPulse {
     );
     let flow = flow_remaining_estimate(
         system_score,
+        cpu_score,
         memory_score,
         storage_score,
+        disk_score,
         application_score,
         browser_score,
         renderer_score,
@@ -73,48 +81,77 @@ struct FlowEstimate {
 }
 
 fn weighted_score(
+    cpu_score: u8,
     memory_score: u8,
     storage_score: u8,
+    disk_score: u8,
     application_score: u8,
     browser_score: u8,
     renderer_score: u8,
     window_server_score: u8,
 ) -> u8 {
-    let score = (memory_score as f64 * 0.25)
-        + (storage_score as f64 * 0.15)
-        + (application_score as f64 * 0.15)
-        + (browser_score as f64 * 0.25)
-        + (renderer_score as f64 * 0.10)
-        + (window_server_score as f64 * 0.10);
+    let score = (memory_score as f64 * 0.28)
+        + (cpu_score as f64 * 0.22)
+        + (browser_score as f64 * 0.18)
+        + (application_score as f64 * 0.12)
+        + (disk_score as f64 * 0.08)
+        + (storage_score as f64 * 0.06)
+        + (renderer_score as f64 * 0.04)
+        + (window_server_score as f64 * 0.02);
     score.round().clamp(0.0, 100.0) as u8
 }
 
 fn health_state(system_score: u8) -> HealthState {
-    if system_score >= 65 {
+    if system_score >= 58 {
         HealthState::Healthy
-    } else if system_score >= 45 {
+    } else if system_score >= 40 {
         HealthState::Attention
     } else {
         HealthState::Critical
     }
 }
 
-fn score_memory(snapshot: &SystemSnapshot) -> u8 {
-    let available_ratio = ratio(snapshot.memory.available_bytes, snapshot.memory.total_bytes);
-    if available_ratio >= 0.20 {
+fn score_cpu(snapshot: &SystemSnapshot) -> u8 {
+    let idle_percent = snapshot.cpu.idle_percent;
+    let busy_percent = (snapshot.cpu.user_percent + snapshot.cpu.system_percent).clamp(0.0, 100.0);
+    if idle_percent >= 55.0 && busy_percent <= 45.0 {
         96
-    } else if available_ratio >= 0.12 {
-        88
-    } else if available_ratio >= 0.07 {
-        72
-    } else if available_ratio >= 0.04 {
+    } else if idle_percent >= 35.0 && busy_percent <= 65.0 {
+        84
+    } else if idle_percent >= 20.0 && busy_percent <= 80.0 {
+        70
+    } else if idle_percent >= 10.0 && busy_percent <= 90.0 {
         55
     } else {
-        38
+        34
+    }
+}
+
+fn score_memory(snapshot: &SystemSnapshot) -> u8 {
+    let available_ratio = ratio(snapshot.memory.available_bytes, snapshot.memory.total_bytes);
+    let swap_ratio = ratio(snapshot.memory.swap_used_bytes, snapshot.memory.total_bytes);
+    let compressed_ratio = ratio(snapshot.memory.compressed_bytes, snapshot.memory.total_bytes);
+
+    if swap_ratio >= 0.50 || available_ratio < 0.03 {
+        30
+    } else if swap_ratio >= 0.30 || available_ratio < 0.05 {
+        42
+    } else if swap_ratio >= 0.15 || available_ratio < 0.08 || compressed_ratio >= 0.35 {
+        55
+    } else if swap_ratio >= 0.05 || available_ratio < 0.12 || compressed_ratio >= 0.25 {
+        70
+    } else if available_ratio >= 0.20 {
+        96
+    } else {
+        84
     }
 }
 
 fn score_storage(snapshot: &SystemSnapshot) -> u8 {
+    score_storage_space(snapshot).min(score_disk_activity(snapshot))
+}
+
+fn score_storage_space(snapshot: &SystemSnapshot) -> u8 {
     let available_ratio = ratio(snapshot.storage.available_bytes, snapshot.storage.total_bytes);
     if available_ratio >= 0.15 {
         96
@@ -126,6 +163,21 @@ fn score_storage(snapshot: &SystemSnapshot) -> u8 {
         55
     } else {
         38
+    }
+}
+
+fn score_disk_activity(snapshot: &SystemSnapshot) -> u8 {
+    let throughput = snapshot.disk_activity.megabytes_per_second;
+    if throughput >= 250.0 {
+        38
+    } else if throughput >= 120.0 {
+        55
+    } else if throughput >= 60.0 {
+        70
+    } else if throughput >= 25.0 {
+        84
+    } else {
+        96
     }
 }
 
@@ -164,25 +216,31 @@ fn score_browser(snapshot: &SystemSnapshot) -> u8 {
     let memory_ratio = ratio(browser.memory_bytes, snapshot.memory.total_bytes);
     let largest_renderer_ratio = ratio(browser.largest_renderer_bytes, snapshot.memory.total_bytes);
 
-    if browser.renderer_count >= 80
-        || memory_ratio >= 0.75
-        || largest_renderer_ratio >= 0.18
+    if browser.renderer_count >= 90
+        || memory_ratio >= 0.72
+        || largest_renderer_ratio >= 0.30
+        || browser.cpu_percent >= 120.0
+    {
+        30
+    } else if browser.renderer_count >= 70
+        || memory_ratio >= 0.58
+        || largest_renderer_ratio >= 0.20
         || browser.cpu_percent >= 85.0
     {
-        38
-    } else if browser.renderer_count >= 60
-        || memory_ratio >= 0.60
-        || largest_renderer_ratio >= 0.14
-        || browser.cpu_percent >= 65.0
+        42
+    } else if browser.renderer_count >= 52
+        || memory_ratio >= 0.45
+        || largest_renderer_ratio >= 0.12
+        || browser.cpu_percent >= 60.0
     {
         55
-    } else if browser.renderer_count >= 40
-        || memory_ratio >= 0.45
-        || largest_renderer_ratio >= 0.10
-        || browser.cpu_percent >= 45.0
+    } else if browser.renderer_count >= 36
+        || memory_ratio >= 0.34
+        || largest_renderer_ratio >= 0.08
+        || browser.cpu_percent >= 35.0
     {
         70
-    } else if browser.renderer_count >= 24 || memory_ratio >= 0.30 || browser.cpu_percent >= 25.0 {
+    } else if browser.renderer_count >= 24 || memory_ratio >= 0.24 || browser.cpu_percent >= 22.0 {
         84
     } else {
         96
@@ -229,26 +287,29 @@ fn score_window_server(snapshot: &SystemSnapshot) -> u8 {
 
 fn primary_recommendation(
     snapshot: &SystemSnapshot,
+    cpu_score: u8,
     memory_score: u8,
     storage_score: u8,
+    disk_score: u8,
     application_score: u8,
     browser_score: u8,
     renderer_score: u8,
     window_server_score: u8,
     system_score: u8,
 ) -> Recommendation {
-    if system_score >= 65 {
+    if system_score >= 58 {
         return Recommendation {
             text: "No action needed right now.".to_string(),
-            explanation: "Nothing is likely to interrupt your work in this check-in.".to_string(),
+            explanation: "Nothing looks close enough to reserve to interrupt your work.".to_string(),
             estimated_additional_work_label: "+0 minutes".to_string(),
         };
     }
 
-    if (browser_score <= application_score
-        && browser_score <= memory_score
-        && browser_score <= storage_score)
-        || renderer_score < 80
+    let browser_pressure_score = browser_score.min(renderer_score);
+
+    if browser_pressure_score <= memory_score
+        && browser_pressure_score <= application_score
+        && browser_pressure_score <= cpu_score
     {
         if let Some(browser) = primary_browser(snapshot) {
             return Recommendation {
@@ -259,19 +320,16 @@ fn primary_recommendation(
         }
     }
 
-    if window_server_score < browser_score
-        && window_server_score <= memory_score
-        && window_server_score <= storage_score
-    {
-        return Recommendation {
-            text: "Finish this task, then restart your Mac if it still feels heavy.".to_string(),
-            explanation: "The lowest-interruption choice is to keep working now and only restart after your active work is safe.".to_string(),
-            estimated_additional_work_label: "+45 minutes".to_string(),
-        };
-    }
-
-    if application_score <= memory_score && application_score <= storage_score {
+    if application_score <= memory_score && application_score <= cpu_score {
         if let Some(application) = snapshot.applications.first() {
+            if application.name.to_lowercase().contains("codex") {
+                return Recommendation {
+                    text: "Keep Codex running and review it after this task.".to_string(),
+                    explanation: "Codex is active work. System Pulse should protect the flow and only suggest care once your current task is safe.".to_string(),
+                    estimated_additional_work_label: "+0 minutes".to_string(),
+                };
+            }
+
             if application.name == "WindowServer" {
                 return Recommendation {
                     text: "Restart your Mac when your work is saved.".to_string(),
@@ -291,11 +349,45 @@ fn primary_recommendation(
         }
     }
 
-    if memory_score <= storage_score {
+    if memory_score <= cpu_score && memory_score <= storage_score {
+        if browser_pressure_score < 70 {
+            if let Some(browser) = primary_browser(snapshot) {
+                return Recommendation {
+                    text: format!("Restart {} when your current thought is safe.", browser.name),
+                    explanation: format!(
+                        "{} is the quickest way to free a meaningful amount of RAM without restarting the whole Mac.",
+                        browser.name
+                    ),
+                    estimated_additional_work_label: "+35 minutes".to_string(),
+                };
+            }
+        }
+
         Recommendation {
-            text: "Close or restart the heaviest app when you are ready.".to_string(),
-            explanation: "This is the lowest-disruption way to buy more comfortable working time without restarting the whole Mac.".to_string(),
+            text: "Free memory at your next natural break.".to_string(),
+            explanation: "RAM and swap are close to reserve. Closing the heaviest safe app is the lowest-disruption care step.".to_string(),
             estimated_additional_work_label: "+20 minutes".to_string(),
+        }
+    } else if cpu_score <= disk_score && cpu_score <= storage_score {
+        Recommendation {
+            text: "Let the busy app settle, then close it if the Mac stays heavy.".to_string(),
+            explanation: "CPU reserve is low. If this continues, Activity Monitor can show which app is still working too hard.".to_string(),
+            estimated_additional_work_label: "+15 minutes".to_string(),
+        }
+    } else if disk_score <= storage_score {
+        Recommendation {
+            text: "Let disk activity finish before changing apps.".to_string(),
+            explanation: "The disk is busy right now. Waiting briefly is safer than interrupting a write or indexing task.".to_string(),
+            estimated_additional_work_label: "+10 minutes".to_string(),
+        }
+    } else if window_server_score < browser_score
+        && window_server_score <= memory_score
+        && window_server_score <= storage_score
+    {
+        Recommendation {
+            text: "Finish this task, then restart your Mac if it still feels heavy.".to_string(),
+            explanation: "The lowest-interruption choice is to keep working now and only restart after your active work is safe.".to_string(),
+            estimated_additional_work_label: "+45 minutes".to_string(),
         }
     } else {
         Recommendation {
@@ -308,16 +400,20 @@ fn primary_recommendation(
 
 fn flow_remaining_estimate(
     system_score: u8,
+    cpu_score: u8,
     memory_score: u8,
     storage_score: u8,
+    disk_score: u8,
     application_score: u8,
     browser_score: u8,
     renderer_score: u8,
     window_server_score: u8,
 ) -> FlowEstimate {
     let weakest_signal = [
+        cpu_score,
         memory_score,
         storage_score,
+        disk_score,
         application_score,
         browser_score,
         renderer_score,
@@ -327,7 +423,13 @@ fn flow_remaining_estimate(
     .min()
     .unwrap_or(system_score);
 
-    let blended_score = (system_score as f64 * 0.72) + (weakest_signal as f64 * 0.28);
+    let reserve_drag = if memory_score < 45 || cpu_score < 45 || browser_score < 45 {
+        0.40
+    } else {
+        0.28
+    };
+    let blended_score =
+        (system_score as f64 * (1.0 - reserve_drag)) + (weakest_signal as f64 * reserve_drag);
     let minutes = if blended_score >= 92.0 {
         410
     } else if blended_score >= 84.0 {
@@ -362,29 +464,34 @@ fn memory_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
     let label = domain_label(score);
     let headline = if score >= 90 {
         "RAM has room."
-    } else if score >= 70 {
-        "RAM is getting tighter."
+    } else if score >= 58 {
+        "RAM is carrying weight."
+    } else if score >= 40 {
+        "Memory is close to reserve."
     } else {
-        "RAM needs care soon."
+        "Memory is on reserve."
     };
     let detail = if score >= 90 {
         "Enough working memory is available for smooth app switching."
-    } else if score >= 70 {
-        "Heavy apps may start to affect smoothness."
+    } else if score >= 58 {
+        "Heavy apps are using RAM, but you can keep going for now."
+    } else if score >= 40 {
+        "Swap is building up, so the Mac may start feeling sticky."
     } else {
-        "Your Mac may feel constrained until memory pressure eases."
+        "RAM and swap are tight enough to interrupt flow soon."
     };
     let value = format!(
-        "{} available ({}%), {} used of {} RAM",
-        format_bytes(snapshot.memory.available_bytes),
-        format_percent(snapshot.memory.available_bytes, snapshot.memory.total_bytes),
+        "{} of {} RAM used, {} available, {}",
         format_bytes(snapshot.memory.used_bytes),
-        format_bytes(snapshot.memory.total_bytes)
+        format_bytes(snapshot.memory.total_bytes),
+        format_bytes(snapshot.memory.available_bytes),
+        format_swap_usage(snapshot.memory.swap_used_bytes, snapshot.memory.swap_total_bytes)
     );
     let metric_label = format!(
-        "{} of {} used",
+        "{} of {} used - {}",
         format_bytes(snapshot.memory.used_bytes),
-        format_bytes(snapshot.memory.total_bytes)
+        format_bytes(snapshot.memory.total_bytes),
+        format_swap_usage(snapshot.memory.swap_used_bytes, snapshot.memory.swap_total_bytes)
     );
     let metric_percent = format!(
         "{}%",
@@ -403,6 +510,7 @@ fn memory_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
 
 fn storage_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
     let label = domain_label(score);
+    let disk_score = score_disk_activity(snapshot);
     let storage_location = if snapshot.storage.mount_point == "/"
         || snapshot
             .storage
@@ -414,31 +522,41 @@ fn storage_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
     } else {
         snapshot.storage.mount_point.as_str()
     };
-    let headline = if score >= 90 {
+    let headline = if disk_score < 58 {
+        "Disk is busy right now."
+    } else if score >= 90 {
         "Disk space has room."
-    } else if score >= 70 {
+    } else if score >= 58 {
         "Storage is beginning to fill."
+    } else if score >= 40 {
+        "Storage is close to reserve."
     } else {
-        "Disk space needs attention soon."
+        "Disk space needs care soon."
     };
-    let detail = if score >= 90 {
+    let detail = if disk_score < 58 {
+        "Heavy reads or writes can make apps feel slower for a short time."
+    } else if score >= 90 {
         "There is enough free disk space for normal work."
-    } else if score >= 70 {
-        "Free disk space is lower than ideal."
+    } else if score >= 58 {
+        "Free disk space is lower than ideal, but not urgent."
+    } else if score >= 40 {
+        "Low space can make updates, caches, and app work less reliable."
     } else {
-        "Low disk space can make updates, caches, and app work less reliable."
+        "Free space is low enough to interrupt normal app work."
     };
     let value = format!(
-        "{} of {} used on {}, {} free",
+        "{} of {} used on {}, {} free, {} disk activity",
         format_bytes(snapshot.storage.used_bytes),
         format_bytes(snapshot.storage.total_bytes),
         storage_location,
-        format_bytes(snapshot.storage.available_bytes)
+        format_bytes(snapshot.storage.available_bytes),
+        format_disk_activity(snapshot.disk_activity.megabytes_per_second)
     );
     let metric_label = format!(
-        "{} of {} used",
+        "{} of {} used - {}",
         format_bytes(snapshot.storage.used_bytes),
-        format_bytes(snapshot.storage.total_bytes)
+        format_bytes(snapshot.storage.total_bytes),
+        format_disk_activity(snapshot.disk_activity.megabytes_per_second)
     );
     let metric_percent = format!(
         "{}%",
@@ -460,16 +578,23 @@ fn browser_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
     if let Some(browser) = primary_browser(snapshot) {
         let headline = if score >= 90 {
             format!("{} looks steady.", browser.name)
-        } else if score >= 70 {
+        } else if score >= 58 {
             format!("{} is adding browser load.", browser.name)
+        } else if score >= 40 {
+            format!("{} is close to reserve.", browser.name)
         } else {
             format!("{} is likely affecting smoothness.", browser.name)
         };
         let detail = if score >= 90 {
             "Browser load is not standing out in this check-in.".to_string()
-        } else if score >= 70 {
+        } else if score >= 58 {
             format!(
-                "{} is carrying noticeable tab and renderer work.",
+                "{} is carrying noticeable tab and renderer work, but it can wait.",
+                browser.name
+            )
+        } else if score >= 40 {
+            format!(
+                "{} has enough renderer load to make the next work block feel heavier.",
                 browser.name
             )
         } else {
@@ -487,10 +612,11 @@ fn browser_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
             browser.renderer_count
         );
         let metric_label = format!(
-            "{} of {} used - {} CPU",
+            "{} of {} used - {} CPU - {} renderers",
             format_bytes(browser.memory_bytes),
             format_bytes(snapshot.memory.total_bytes),
-            format_cpu(browser.cpu_percent)
+            format_cpu(browser.cpu_percent),
+            browser.renderer_count
         );
         let metric_percent = format!(
             "{}%",
@@ -525,8 +651,10 @@ fn application_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
         .unwrap_or("No application");
     let headline = if score >= 90 {
         "Applications look steady.".to_string()
-    } else if score >= 70 {
+    } else if score >= 58 {
         format!("{top_application_name} may need care next.")
+    } else if score >= 40 {
+        format!("{top_application_name} is close to reserve.")
     } else {
         format!("{top_application_name} may interrupt momentum.")
     };
@@ -534,6 +662,11 @@ fn application_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
         if score >= 90 {
             format!(
                 "{} is doing the most work, but it does not look disruptive.",
+                top_application_name
+            )
+        } else if score >= 58 {
+            format!(
+                "{} is carrying noticeable work, but it can wait.",
                 top_application_name
             )
         } else {
@@ -666,7 +799,7 @@ fn application_impacts(snapshot: &SystemSnapshot) -> Vec<ApplicationImpact> {
                     true,
                     false,
                 )
-            } else if index == 0 && is_finder && app_score < 65 {
+            } else if index == 0 && is_finder && app_score < 58 {
                 (
                     "Restart Finder at your next break".to_string(),
                     "Finder can sometimes make window movement and file browsing feel heavier. Restarting Finder is usually quick and does not restart your Mac.".to_string(),
@@ -677,7 +810,7 @@ fn application_impacts(snapshot: &SystemSnapshot) -> Vec<ApplicationImpact> {
                     true,
                     false,
                 )
-            } else if index == 0 && is_window_server && app_score < 65 {
+            } else if index == 0 && is_window_server && app_score < 58 {
                 (
                     "Review desktop responsiveness".to_string(),
                     "Desktop responsiveness is doing unusual work. Opening Activity Monitor is the safest next step before deciding whether a full Mac restart is worth it.".to_string(),
@@ -688,7 +821,7 @@ fn application_impacts(snapshot: &SystemSnapshot) -> Vec<ApplicationImpact> {
                     true,
                     false,
                 )
-            } else if index == 0 && app_score < 65 && safe_restart_target(display_name) {
+            } else if index == 0 && app_score < 58 && safe_restart_target(display_name) {
                 (
                     format!("Restart {display_name} when finished"),
                     format!(
@@ -701,7 +834,7 @@ fn application_impacts(snapshot: &SystemSnapshot) -> Vec<ApplicationImpact> {
                     true,
                     false,
                 )
-            } else if index == 0 && app_score < 65 {
+            } else if index == 0 && app_score < 58 {
                 (
                     format!("Review {display_name} in Activity Monitor"),
                     format!(
@@ -831,9 +964,9 @@ fn browser_recommendation_explanation(browser: &BrowserSnapshot) -> String {
 }
 
 fn domain_label(score: u8) -> &'static str {
-    if score >= 65 {
+    if score >= 58 {
         "OK"
-    } else if score >= 45 {
+    } else if score >= 40 {
         "Later"
     } else {
         "Care"
@@ -863,6 +996,28 @@ fn format_percent(part: u64, whole: u64) -> String {
         "0".to_string()
     } else {
         format!("{:.0}", (part as f64 / whole as f64) * 100.0)
+    }
+}
+
+fn format_disk_activity(megabytes_per_second: f32) -> String {
+    if megabytes_per_second >= 10.0 {
+        format!("{megabytes_per_second:.0} MB/s")
+    } else if megabytes_per_second >= 1.0 {
+        format!("{megabytes_per_second:.1} MB/s")
+    } else {
+        "<1 MB/s".to_string()
+    }
+}
+
+fn format_swap_usage(used_bytes: u64, total_bytes: u64) -> String {
+    if total_bytes > 0 {
+        format!(
+            "{} of {} swap",
+            format_bytes(used_bytes),
+            format_bytes(total_bytes)
+        )
+    } else {
+        format!("{} swap", format_bytes(used_bytes))
     }
 }
 

@@ -181,3 +181,33 @@ UAT for the next build:
 3. Confirm Memory shows RAM available/used and Storage shows disk free/used with percentages.
 4. Confirm Things worth knowing shows compact right-hand metrics.
 5. Confirm Recommended care is headed "Needs attention" and uses short action rows.
+
+## Current Intelligence Pass
+
+Date: 2 July 2026
+
+Vanessa clarified that System Pulse is not trying to explain Activity Monitor. It is trying to prevent the Mac from becoming sluggish while she is in flow.
+
+System Pulse should treat the Pulse score like a fuel gauge plus early warning light:
+
+- OK: the Mac is not close to reserve; keep working.
+- Later: finish the current thought, then tidy the main pressure source.
+- Care: the Mac is on reserve and flow may be interrupted soon.
+
+The intelligence should prioritize signals that affect smooth work right now:
+
+- CPU reserve, especially low idle CPU.
+- RAM pressure, especially swap and compressed memory.
+- Browser renderer load, because Chrome/Safari/Edge/Firefox can become many heavy processes.
+- Disk activity, because reads and writes can make apps feel slow even when storage space is not full.
+- Storage space, because low space affects updates, caches, and reliability.
+
+Applications should exclude browsers. Browser pressure belongs only in Browser. Applications should show the next highest non-browser app pressure.
+
+UAT for the next build:
+
+1. Open Today while Activity Monitor is visible and confirm Browser is not repeated under Applications.
+2. Confirm Memory reflects swap pressure when Activity Monitor shows significant swap used.
+3. Confirm Storage reads as used/total, while also noting active disk activity when the disk is busy.
+4. Confirm yellow or red states only appear when the Mac is close to reserve, not for manageable background load.
+5. Confirm the recommended action is the least disruptive useful care step, not a generic diagnosis.
