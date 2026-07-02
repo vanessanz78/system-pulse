@@ -839,7 +839,7 @@ fn application_impacts(snapshot: &SystemSnapshot) -> Vec<ApplicationImpact> {
             ) = if is_codex {
                 (
                     "No recommendation".to_string(),
-                    "Codex is active work. Smallest action: keep it running and archive inactive conversations later if you need more breathing room. Expected interruption now: none.",
+                    "Codex is active work. Smallest action: keep it running and archive inactive conversations later if you need more breathing room. Expected interruption now: none.".to_string(),
                     "+0 minutes".to_string(),
                     "none".to_string(),
                     String::new(),
