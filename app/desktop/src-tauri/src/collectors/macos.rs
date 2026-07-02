@@ -196,6 +196,9 @@ fn collect_top_applications(
             continue;
         }
         let name = normalize_application_name(&process.command_name);
+        if !is_user_opened_application(&name, &process.command_name) {
+            continue;
+        }
         let entry = grouped.entry(name).or_insert((0, 0.0));
         entry.0 = entry.0.saturating_add(process.rss_bytes);
         entry.1 += process.cpu_percent;
@@ -240,6 +243,83 @@ fn is_system_pulse_process(command_name: &str) -> bool {
         || raw_name.contains("system pulse")
         || normalized_name.contains("system-pulse")
         || normalized_name.contains("system pulse")
+}
+
+fn is_user_opened_application(name: &str, command_name: &str) -> bool {
+    if is_known_user_application(name) {
+        return true;
+    }
+
+    let raw_name = command_name.to_lowercase();
+    if is_hidden_system_process(name, command_name) {
+        return false;
+    }
+
+    raw_name.contains("/applications/")
+}
+
+fn is_known_user_application(name: &str) -> bool {
+    matches!(
+        name,
+        "Codex"
+            | "Visual Studio Code"
+            | "Cursor"
+            | "Slack"
+            | "Discord"
+            | "Spotify"
+            | "TradingView"
+            | "Replit Desktop"
+            | "Figma"
+            | "Preview"
+            | "Notes"
+            | "Terminal"
+            | "System Settings"
+            | "Finder"
+    )
+}
+
+fn is_hidden_system_process(name: &str, command_name: &str) -> bool {
+    let normalized_name = name.to_lowercase();
+    let raw_name = command_name.to_lowercase();
+    let hidden_names = [
+        "addressbooksourcesync",
+        "applicationsstorageextension",
+        "bird",
+        "calaccessd",
+        "cfprefsd",
+        "cloudstoragehelper",
+        "com.apple.webkit.networking",
+        "contactsd",
+        "coreaudiod",
+        "corespeechd",
+        "distnoted",
+        "duetexpertd",
+        "iconservicesagent",
+        "kernel_task",
+        "knowledge-agent",
+        "launchd",
+        "lsd",
+        "mds",
+        "mds_stores",
+        "mdworker",
+        "mdworker_shared",
+        "opendirectoryd",
+        "secd",
+        "sharingd",
+        "storagekit",
+        "storagemanagementservice",
+        "suggestd",
+        "syslogd",
+        "trustd",
+        "windowserver",
+    ];
+
+    hidden_names
+        .iter()
+        .any(|hidden| normalized_name == *hidden || raw_name.ends_with(hidden))
+        || raw_name.contains("/usr/libexec/")
+        || raw_name.contains("/usr/sbin/")
+        || raw_name.contains("/system/library/")
 }
 
 #[derive(Default)]
@@ -369,6 +449,30 @@ fn normalize_application_name(command_name: &str) -> String {
     }
     if lower.contains("safari") {
         return "Safari".to_string();
+    }
+    if lower.contains("tradingview") {
+        return "TradingView".to_string();
+    }
+    if lower.contains("replit") {
+        return "Replit Desktop".to_string();
+    }
+    if lower.contains("figma") {
+        return "Figma".to_string();
+    }
+    if lower.contains("preview") {
+        return "Preview".to_string();
+    }
+    if lower.contains("notes") {
+        return "Notes".to_string();
+    }
+    if lower.contains("terminal") {
+        return "Terminal".to_string();
+    }
+    if lower.contains("system settings") {
+        return "System Settings".to_string();
+    }
+    if lower.ends_with("finder") || lower.contains("/finder") {
+        return "Finder".to_string();
     }
     if lower.ends_with("windowserver") || lower.contains("/windowserver") {
         return "WindowServer".to_string();

@@ -99,6 +99,7 @@ pub struct TodayPulse {
     pub flow_remaining_minutes: u32,
     pub memory_health: DomainHealth,
     pub storage_health: DomainHealth,
+    pub processor_health: DomainHealth,
     pub browser_health: DomainHealth,
     pub application_health: DomainHealth,
     pub top_applications: Vec<ApplicationImpact>,

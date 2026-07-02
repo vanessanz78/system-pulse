@@ -356,6 +356,35 @@ p {
   position: absolute;
 }
 
+.status-icon-processor {
+  border-radius: 4px;
+}
+
+.status-icon-processor::before {
+  border: 1px solid rgba(247, 250, 248, 0.76);
+  border-radius: 3px;
+  content: "";
+  inset: 0.24rem;
+  position: absolute;
+}
+
+.status-icon-processor::after {
+  background: rgba(247, 250, 248, 0.82);
+  border-radius: 999px;
+  box-shadow:
+    -0.26rem 0 0 -0.06rem rgba(247, 250, 248, 0.62),
+    0.26rem 0 0 -0.06rem rgba(247, 250, 248, 0.62),
+    0 -0.26rem 0 -0.06rem rgba(247, 250, 248, 0.62),
+    0 0.26rem 0 -0.06rem rgba(247, 250, 248, 0.62);
+  content: "";
+  height: 0.18rem;
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 0.18rem;
+}
+
 .status-icon-browser {
   border-radius: 999px;
 }
@@ -877,6 +906,22 @@ p {
   gap: 0.7rem;
 }
 
+.decision-care-summary {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.decision-care-summary strong {
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.decision-care-summary p:not(.care-task-label) {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
 .care-task {
   align-items: center;
   border-bottom: 1px solid rgba(221, 255, 238, 0.08);
@@ -935,6 +980,10 @@ p {
 .care-task-actions button {
   min-height: 2.05rem;
   padding: 0.48rem 0.58rem;
+}
+
+.care-task-actions button:only-child {
+  grid-column: 1 / -1;
 }
 
 .calm-panel {

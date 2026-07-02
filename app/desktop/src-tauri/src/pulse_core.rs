@@ -25,6 +25,7 @@ pub fn evaluate(snapshot: SystemSnapshot) -> TodayPulse {
     let top_applications = application_impacts(&snapshot);
     let memory_health = memory_health(&snapshot, memory_score);
     let storage_health = storage_health(&snapshot, storage_score);
+    let processor_health = processor_health(&snapshot, cpu_score.min(window_server_score));
     let browser_health = browser_health(&snapshot, browser_score);
     let application_health = application_health(&snapshot, application_score);
     let recommendation = primary_recommendation(
@@ -63,6 +64,7 @@ pub fn evaluate(snapshot: SystemSnapshot) -> TodayPulse {
         flow_remaining_minutes: flow.minutes,
         memory_health,
         storage_health,
+        processor_health,
         browser_health,
         application_health,
         top_applications,
@@ -338,13 +340,24 @@ fn primary_recommendation(
                 };
             }
 
+            if safe_restart_target(&application.name) {
+                return Recommendation {
+                    text: format!("Restart {} when you are finished with it.", application.name),
+                    explanation: format!(
+                        "{} is using enough processor or memory to affect smoothness. Wait until it is not doing important work.",
+                        application.name
+                    ),
+                    estimated_additional_work_label: "+25 minutes".to_string(),
+                };
+            }
+
             return Recommendation {
-                text: format!("Restart {} when you are finished with it.", application.name),
+                text: format!("Let {} settle before opening another heavy app.", application.name),
                 explanation: format!(
-                    "{} is the least disruptive care candidate right now. Wait until it is not doing important work.",
+                    "{} is using enough processor or memory to explain sluggishness, but there is no safe one-click action for it yet.",
                     application.name
                 ),
-                estimated_additional_work_label: "+25 minutes".to_string(),
+                estimated_additional_work_label: "+0 minutes".to_string(),
             };
         }
     }
@@ -371,7 +384,7 @@ fn primary_recommendation(
     } else if cpu_score <= disk_score && cpu_score <= storage_score {
         Recommendation {
             text: "Let the busy app settle, then close it if the Mac stays heavy.".to_string(),
-            explanation: "CPU reserve is low. If this continues, Activity Monitor can show which app is still working too hard.".to_string(),
+            explanation: "Processor reserve is low. System Pulse is watching for the app causing it and will only show a direct action when it is safe.".to_string(),
             estimated_additional_work_label: "+15 minutes".to_string(),
         }
     } else if disk_score <= storage_score {
@@ -462,23 +475,24 @@ fn format_flow_remaining(minutes: u32) -> String {
 
 fn memory_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
     let label = domain_label(score);
+    let available = format_bytes(snapshot.memory.available_bytes);
     let headline = if score >= 90 {
-        "RAM has room."
+        "Working memory has room."
     } else if score >= 58 {
-        "RAM is carrying weight."
+        "Working memory is carrying weight."
     } else if score >= 40 {
         "Memory is close to reserve."
     } else {
         "Memory is on reserve."
     };
     let detail = if score >= 90 {
-        "Enough working memory is available for smooth app switching."
+        format!("{available} available. You still have plenty of room for today's workload.")
     } else if score >= 58 {
-        "Heavy apps are using RAM, but you can keep going for now."
+        format!("{available} remains. Heavy apps are using RAM, but you can keep going for now.")
     } else if score >= 40 {
-        "Swap is building up, so the Mac may start feeling sticky."
+        format!("Only {available} remains. Swap is building up, so the Mac may start feeling less responsive.")
     } else {
-        "RAM and swap are tight enough to interrupt flow soon."
+        format!("Only {available} remains. Memory is tight enough to interrupt flow soon.")
     };
     let value = format!(
         "{} of {} RAM used, {} available, {}",
@@ -501,7 +515,62 @@ fn memory_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
     DomainHealth {
         label: label.to_string(),
         headline: headline.to_string(),
-        detail: detail.to_string(),
+        detail,
+        value,
+        metric_label,
+        metric_percent,
+    }
+}
+
+fn processor_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
+    let label = domain_label(score);
+    let used_percent = (snapshot.cpu.user_percent + snapshot.cpu.system_percent).clamp(0.0, 100.0);
+    let reserve_percent = snapshot.cpu.idle_percent.clamp(0.0, 100.0);
+    let top_application = snapshot.applications.first();
+    let top_application_name = top_application
+        .map(|application| display_application_name(&application.name))
+        .unwrap_or("No application");
+    let top_application_cpu = top_application
+        .map(|application| application.cpu_percent)
+        .unwrap_or_default();
+
+    let headline = if score >= 90 {
+        "Processor has room.".to_string()
+    } else if top_application_cpu >= 35.0 {
+        format!("{top_application_name} is using active processor time.")
+    } else if reserve_percent < 20.0 {
+        "Processor reserve is getting low.".to_string()
+    } else {
+        "Processor is carrying today's workload.".to_string()
+    };
+    let detail = if score >= 90 {
+        "No application is currently slowing the computer.".to_string()
+    } else if top_application_cpu >= 35.0 {
+        format!(
+            "{top_application_name} is using significantly more processor time than normal."
+        )
+    } else if reserve_percent < 20.0 {
+        "The Mac has less spare processor room, so opening heavy apps may feel slower.".to_string()
+    } else {
+        "Processor load is noticeable, but it does not need to interrupt you right now."
+            .to_string()
+    };
+    let value = format!(
+        "{} processor used, {} reserve",
+        format_cpu(used_percent),
+        format_cpu(reserve_percent)
+    );
+    let metric_label = format!(
+        "{} used - {} reserve",
+        format_cpu(used_percent),
+        format_cpu(reserve_percent)
+    );
+    let metric_percent = format!("{}%", used_percent.round() as u8);
+
+    DomainHealth {
+        label: label.to_string(),
+        headline,
+        detail,
         value,
         metric_label,
         metric_percent,
@@ -813,13 +882,13 @@ fn application_impacts(snapshot: &SystemSnapshot) -> Vec<ApplicationImpact> {
                 )
             } else if index == 0 && is_window_server && app_score < 58 {
                 (
-                    "Review desktop responsiveness".to_string(),
-                    "Desktop responsiveness is doing unusual work. Opening Activity Monitor is the safest next step before deciding whether a full Mac restart is worth it.".to_string(),
+                    "No direct action yet".to_string(),
+                    "Desktop responsiveness is doing unusual work. Keep working for now, then restart the Mac only after active work is saved if it stays heavy.".to_string(),
                     "+10 minutes".to_string(),
-                    "openActivityMonitor".to_string(),
-                    "Activity Monitor".to_string(),
-                    "Open Activity Monitor".to_string(),
-                    true,
+                    "none".to_string(),
+                    String::new(),
+                    String::new(),
+                    false,
                     false,
                 )
             } else if index == 0 && app_score < 58 && safe_restart_target(display_name) {
@@ -837,15 +906,15 @@ fn application_impacts(snapshot: &SystemSnapshot) -> Vec<ApplicationImpact> {
                 )
             } else if index == 0 && app_score < 58 {
                 (
-                    format!("Review {display_name} in Activity Monitor"),
+                    format!("Review {display_name} when this task is safe"),
                     format!(
-                        "{display_name} is using enough RAM or CPU to affect smoothness. Activity Monitor is the safest place to decide whether to close it."
+                        "{display_name} is using enough RAM or processor time to affect smoothness, but System Pulse does not have a safe one-click action for it yet."
                     ),
                     "+10 minutes".to_string(),
-                    "openActivityMonitor".to_string(),
-                    "Activity Monitor".to_string(),
-                    "Review".to_string(),
-                    true,
+                    "none".to_string(),
+                    String::new(),
+                    String::new(),
+                    false,
                     false,
                 )
             } else if index == 0 {

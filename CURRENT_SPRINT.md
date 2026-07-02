@@ -279,3 +279,35 @@ UAT for the next build:
 2. Confirm Applications does not say System Pulse is the main app to care about.
 3. Confirm Codex or Desktop responsiveness can still appear when they are genuinely using noticeable CPU.
 4. Confirm the right panel does not show a stale "System Pulse hidden" message for normal usage.
+
+## Current Decision Support Refinement
+
+Date: 2 July 2026
+
+Vanessa confirmed the visual direction is established. Do not redesign the app. Refine the intelligence so System Pulse behaves like a workflow companion, not Activity Monitor.
+
+Primary Today cards:
+
+- Applications
+- Memory
+- Processor
+- Browser
+
+Storage should stay in the background unless disk space or disk activity genuinely needs attention.
+
+Implementation direction:
+
+- Applications should show user-opened apps only, not macOS internals such as `mdworker_shared`, `corespeechd`, `trustd`, `WindowServer`, or similar services.
+- Browser remains separate so Chrome/Safari are not repeated under Applications.
+- Processor is the plain-language CPU card and should explain whether processor reserve or one application is making the Mac feel heavy.
+- Memory should explain remaining working memory and what it means for flow.
+- Do not send Vanessa to Activity Monitor as the answer.
+- Do not show placeholder buttons. Every visible action must perform real care, otherwise show calm guidance without a fake button.
+
+UAT for the next build:
+
+1. Open Today and confirm the four top cards are Applications, Memory, Processor, and Browser.
+2. Confirm Storage is not one of the four primary cards, but still appears as care if disk space genuinely needs attention.
+3. Confirm Application usage lists user-opened apps only and does not show System Pulse, `mdworker_shared`, `corespeechd`, `trustd`, or other internal services.
+4. Confirm Browser reports browser memory, processor use, processes, and renderers without duplicating Chrome under Applications.
+5. Confirm Recommended care never shows an Activity Monitor button or any other button that does nothing.

@@ -81,19 +81,19 @@ fn mark_application_pressure(pulse: &mut TodayPulse, application: &ApplicationSn
         impact.care_label = if is_codex {
             "Let Codex finish before heavier apps".to_string()
         } else {
-            format!("Review {display_name} in Activity Monitor")
+            format!("Let {display_name} settle before heavier apps")
         };
         impact.care_detail = if is_codex {
-            "Codex is protected active work. Review it rather than restarting it mid-task."
+            "Codex is protected active work. Keep going, then reassess once this task is finished."
                 .to_string()
         } else {
-            format!("{display_name} is using enough CPU to make app switching feel slower.")
+            format!("{display_name} is using enough processor time to make app switching feel slower. System Pulse does not have a safe one-click action for it yet.")
         };
         impact.care_estimated_improvement = "+0 minutes".to_string();
-        impact.action_kind = "openActivityMonitor".to_string();
-        impact.action_target = "Activity Monitor".to_string();
-        impact.action_label = "Review".to_string();
-        impact.show_opportunity = true;
+        impact.action_kind = "none".to_string();
+        impact.action_target = String::new();
+        impact.action_label = String::new();
+        impact.show_opportunity = false;
         impact.protected_work = is_codex;
     }
 }
@@ -104,7 +104,7 @@ fn mark_desktop_pressure(pulse: &mut TodayPulse) {
     pulse.application_health.detail =
         "Window movement and app opening can feel slower while desktop CPU is high.".to_string();
     pulse.primary_recommendation =
-        "Let the desktop settle, then review Activity Monitor if it stays heavy.".to_string();
+        "Let the desktop settle before opening another heavy app.".to_string();
     pulse.primary_explanation =
         "Desktop responsiveness is under enough CPU pressure to explain sluggishness.".to_string();
     pulse.estimated_additional_work_label = "+0 minutes".to_string();
@@ -116,13 +116,13 @@ fn mark_desktop_pressure(pulse: &mut TodayPulse) {
     {
         impact.care_label = "Review desktop responsiveness".to_string();
         impact.care_detail =
-            "Activity Monitor is the safest place to check whether the desktop is still working hard."
+            "Desktop responsiveness can spike while macOS is drawing windows, switching apps, or opening something heavy. Keep working for now and restart the Mac later only if it stays heavy."
                 .to_string();
         impact.care_estimated_improvement = "+0 minutes".to_string();
-        impact.action_kind = "openActivityMonitor".to_string();
-        impact.action_target = "Activity Monitor".to_string();
-        impact.action_label = "Review".to_string();
-        impact.show_opportunity = true;
+        impact.action_kind = "none".to_string();
+        impact.action_target = String::new();
+        impact.action_label = String::new();
+        impact.show_opportunity = false;
         impact.protected_work = false;
     }
 }

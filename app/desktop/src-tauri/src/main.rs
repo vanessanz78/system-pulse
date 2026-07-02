@@ -102,10 +102,6 @@ fn platform_perform_care_action(action_kind: &str, target: &str) -> Result<Strin
             }
             Ok("Storage Settings has been opened.".to_string())
         }
-        "openActivityMonitor" => {
-            open_application("Activity Monitor")?;
-            Ok("Activity Monitor has been opened.".to_string())
-        }
         _ => Err("System Pulse does not know how to perform that care action yet.".to_string()),
     }
 }

@@ -42,6 +42,7 @@ type TodayPulse = {
   flowRemainingMinutes: number;
   memoryHealth: DomainHealth;
   storageHealth: DomainHealth;
+  processorHealth: DomainHealth;
   applicationHealth: DomainHealth;
   batteryHealth?: DomainHealth;
   browserHealth?: DomainHealth;
@@ -203,8 +204,8 @@ function companionGlance(pulse: TodayPulse): string {
   const items = [
     companionSignal("Applications", "apps", pulse.applicationHealth),
     companionSignal("Memory", "memory", pulse.memoryHealth),
+    companionSignal("Processor", "processor", pulse.processorHealth),
     companionSignal("Browser", "browser", pulse.browserHealth ?? healthyBatteryFallback()),
-    companionSignal("Storage", "storage", pulse.storageHealth),
   ].join("");
 
   return `
@@ -249,8 +250,8 @@ function todayStatusCards(pulse: TodayPulse): string {
     <div class="today-status-grid" aria-label="System status">
       ${todayStatusCard("Applications", "apps", pulse.applicationHealth, "Everything looks clear.")}
       ${todayStatusCard("Memory", "memory", pulse.memoryHealth, "Pressure is low.")}
+      ${todayStatusCard("Processor", "processor", pulse.processorHealth, "Processor has room.")}
       ${todayStatusCard("Browser", "browser", pulse.browserHealth ?? healthyBatteryFallback(), "Everything looks clear.")}
-      ${todayStatusCard("Storage", "storage", pulse.storageHealth, "Storage looks clear.")}
     </div>
   `;
 }
@@ -286,7 +287,6 @@ function quietCareLabel(application: ApplicationImpact): string {
   if (application.actionKind === "restartApp") return `Restart ${application.name}`;
   if (application.actionKind === "quitApp") return `Quit ${application.name}`;
   if (application.actionKind === "restartFinder") return "Restart Finder";
-  if (application.actionKind === "openActivityMonitor") return "Open Activity Monitor";
   return application.actionLabel || application.careLabel;
 }
 
@@ -354,9 +354,6 @@ function browserCareTask(domain: DomainHealth): string {
         >
           ${escapeHtml(actionLabel)}
         </button>
-        <button class="recommended-secondary-button" type="button">
-          Later
-        </button>
       </div>
     </div>
   `;
@@ -367,7 +364,6 @@ function domainCareTask(
   icon: string,
   domain: DomainHealth,
   actionLabel: string,
-  secondaryLabel: string,
   actionKind: string,
 ): string {
   return `
@@ -382,9 +378,6 @@ function domainCareTask(
         <button class="recommended-primary-button" type="button" data-domain-action="${escapeHtml(actionKind)}">
           ${escapeHtml(actionLabel)}
         </button>
-        <button class="recommended-secondary-button" type="button">
-          ${escapeHtml(secondaryLabel)}
-        </button>
       </div>
     </div>
   `;
@@ -394,14 +387,11 @@ function careTasks(pulse: TodayPulse): string[] {
   const tasks: string[] = [];
   const application = firstRecommendedApplication(pulse);
   if (application) tasks.push(applicationCareTask(application));
-  if (domainNeedsCare(pulse.memoryHealth)) {
-    tasks.push(domainCareTask("Memory", "memory", pulse.memoryHealth, "Open", "Later", "openActivityMonitor"));
-  }
   if (pulse.browserHealth && domainNeedsCare(pulse.browserHealth)) {
     tasks.push(browserCareTask(pulse.browserHealth));
   }
   if (domainNeedsCare(pulse.storageHealth)) {
-    tasks.push(domainCareTask("Storage", "storage", pulse.storageHealth, "Open Settings", "Later", "openStorageSettings"));
+    tasks.push(domainCareTask("Storage", "storage", pulse.storageHealth, "Open Settings", "openStorageSettings"));
   }
   return tasks.slice(0, 4);
 }
@@ -471,6 +461,23 @@ function recommendedCare(pulse: TodayPulse): string {
         ${careMessageHtml()}
         <div class="care-task-list">
           ${tasks.join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  if (pulse.healthState !== "healthy" || pulse.primaryRecommendation !== "No action needed right now.") {
+    return `
+      <section class="summary-section care-panel attention-panel">
+        <p class="panel-kicker recommended-kicker"><span aria-hidden="true">&#9733;</span> Recommended care</p>
+        ${careMessageHtml()}
+        <div class="decision-care-summary">
+          <p class="care-task-label">Problem</p>
+          <strong>${escapeHtml(pulse.primaryRecommendation)}</strong>
+          <p>${escapeHtml(pulse.primaryExplanation)}</p>
+          <p class="care-task-label">Estimated benefit</p>
+          <strong>${escapeHtml(pulse.estimatedAdditionalWorkLabel)}</strong>
+          <p class="summary-answer">No safe one-click action right now. Finish what you're doing first.</p>
         </div>
       </section>
     `;
@@ -731,11 +738,10 @@ function wireCareActions(pulse: TodayPulse): void {
 }
 
 async function performApplicationAction(application: ApplicationImpact): Promise<void> {
+  if (application.actionKind === "none") return;
   const target = application.actionTarget || application.name;
   const confirmed = window.confirm(
-    application.actionKind === "openActivityMonitor"
-      ? "System Pulse will open Activity Monitor so you can review this safely. Continue?"
-      : `System Pulse will ask macOS to ${application.actionLabel.toLowerCase()} for ${target}. Continue?`,
+    `System Pulse will ask macOS to ${application.actionLabel.toLowerCase()} for ${target}. Continue?`,
   );
   if (!confirmed) return;
 
@@ -779,7 +785,8 @@ async function performBrowserAction(actionKind: string, target: string): Promise
 }
 
 async function performDomainAction(actionKind: string): Promise<void> {
-  careMessage = "Opening the right place in System Settings...";
+  if (actionKind !== "openStorageSettings") return;
+  careMessage = "Opening Storage Settings...";
   if (currentPulse) renderToday(currentPulse, true);
 
   try {
