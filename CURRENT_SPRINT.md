@@ -211,3 +211,22 @@ UAT for the next build:
 3. Confirm Storage reads as used/total, while also noting active disk activity when the disk is busy.
 4. Confirm yellow or red states only appear when the Mac is close to reserve, not for manageable background load.
 5. Confirm the recommended action is the least disruptive useful care step, not a generic diagnosis.
+
+## Current Storage Wording Fix
+
+Date: 2 July 2026
+
+Vanessa caught a mismatch where Storage could say "Good" while also saying free disk space was lower than ideal, even when only a small percentage of the disk was used.
+
+Storage copy must separate two signals:
+
+- Disk space: how much of the drive is used.
+- Disk activity: whether reads/writes are busy right now.
+
+If disk space has room, the card should say that clearly. Disk activity may reduce smoothness, but it should not make the app claim free space is low.
+
+UAT for the next build:
+
+1. Confirm a low used percentage, such as 7% used, says disk space has room.
+2. Confirm "Free disk space is lower than ideal" appears only when the used/free storage percentage actually supports it.
+3. Confirm disk-busy language appears only when disk activity is the reason for attention.

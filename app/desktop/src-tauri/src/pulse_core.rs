@@ -510,6 +510,7 @@ fn memory_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
 
 fn storage_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
     let label = domain_label(score);
+    let space_score = score_storage_space(snapshot);
     let disk_score = score_disk_activity(snapshot);
     let storage_location = if snapshot.storage.mount_point == "/"
         || snapshot
@@ -524,22 +525,22 @@ fn storage_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
     };
     let headline = if disk_score < 58 {
         "Disk is busy right now."
-    } else if score >= 90 {
+    } else if space_score >= 90 {
         "Disk space has room."
-    } else if score >= 58 {
+    } else if space_score >= 58 {
         "Storage is beginning to fill."
-    } else if score >= 40 {
+    } else if space_score >= 40 {
         "Storage is close to reserve."
     } else {
         "Disk space needs care soon."
     };
     let detail = if disk_score < 58 {
         "Heavy reads or writes can make apps feel slower for a short time."
-    } else if score >= 90 {
+    } else if space_score >= 90 {
         "There is enough free disk space for normal work."
-    } else if score >= 58 {
+    } else if space_score >= 58 {
         "Free disk space is lower than ideal, but not urgent."
-    } else if score >= 40 {
+    } else if space_score >= 40 {
         "Low space can make updates, caches, and app work less reliable."
     } else {
         "Free space is low enough to interrupt normal app work."
@@ -553,7 +554,7 @@ fn storage_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
         format_disk_activity(snapshot.disk_activity.megabytes_per_second)
     );
     let metric_label = format!(
-        "{} of {} used - {}",
+        "{} used of {} - {}",
         format_bytes(snapshot.storage.used_bytes),
         format_bytes(snapshot.storage.total_bytes),
         format_disk_activity(snapshot.disk_activity.megabytes_per_second)
