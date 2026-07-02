@@ -230,3 +230,31 @@ UAT for the next build:
 1. Confirm a low used percentage, such as 7% used, says disk space has room.
 2. Confirm "Free disk space is lower than ideal" appears only when the used/free storage percentage actually supports it.
 3. Confirm disk-busy language appears only when disk activity is the reason for attention.
+
+## Current CPU Pressure Truth Fix
+
+Date: 2 July 2026
+
+Vanessa caught a case where System Pulse said the Mac was in a good place to focus while opening Chrome still felt sluggish.
+
+The screenshot showed the actual reason:
+
+- Codex was using meaningful CPU.
+- Desktop responsiveness was also using meaningful CPU.
+- Browser itself was not the current pressure source.
+
+System Pulse must not treat this as "No action needed." If the Mac feels slow and active application or desktop responsiveness CPU is high, the score should drop into Later and show the calm care path.
+
+Implementation direction:
+
+- Keep Browser separate from Applications.
+- Let high application CPU or desktop responsiveness CPU reduce the overall flow score, even if RAM and browser look fine.
+- If Codex is the pressure source, show it as protected active work to review, not something to restart mid-task.
+- Keep the wording calm: "finish what you're doing first," not panic.
+
+UAT for the next build:
+
+1. Open Today while Codex or Desktop responsiveness is using noticeable CPU and confirm the score does not stay high green.
+2. Confirm the right panel shows a review/care row instead of "No action needed."
+3. Confirm Browser can still say Good when Chrome itself is not the pressure source.
+4. Confirm Codex is not offered as a restart action while it is actively working.
