@@ -1,5 +1,6 @@
 use crate::models::SystemSnapshot;
 
+// Keeps GitHub Desktop Build artifacts fresh after recovery-plan updates.
 #[cfg(target_os = "macos")]
 mod macos;
 
