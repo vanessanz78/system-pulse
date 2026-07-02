@@ -25,19 +25,6 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          cat > /tmp/system-pulse-final-fix.patch <<'PATCH'
-          diff --git a/app/desktop/src-tauri/src/pulse_core.rs b/app/desktop/src-tauri/src/pulse_core.rs
-          --- a/app/desktop/src-tauri/src/pulse_core.rs
-          +++ b/app/desktop/src-tauri/src/pulse_core.rs
-          @@ -872,7 +872,7 @@ fn application_impacts(snapshot: &SystemSnapshot) -> Vec<ApplicationImpact> {
-                       (
-                           "Restart Finder at your next break".to_string(),
-          -                "Finder can make window movement and file browsing feel heavier. Smallest action: restart Finder only, not the Mac. Expected interruption: about 5 seconds.",
-          +                "Finder can make window movement and file browsing feel heavier. Smallest action: restart Finder only, not the Mac. Expected interruption: about 5 seconds.".to_string(),
-                           "+5 minutes".to_string(),
-                           "restartFinder".to_string(),
-                           "Finder".to_string(),
-          PATCH
           git fetch origin main
           git checkout -B main origin/main
           current="$(git rev-parse HEAD)"
@@ -45,8 +32,16 @@ jobs:
             echo "main moved from expected base ${EXPECTED_MAIN} to ${current}; refusing to apply patch"
             exit 1
           fi
-          git apply --check /tmp/system-pulse-final-fix.patch
-          git apply /tmp/system-pulse-final-fix.patch
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('app/desktop/src-tauri/src/pulse_core.rs')
+          text = path.read_text()
+          old = '"Finder can make window movement and file browsing feel heavier. Smallest action: restart Finder only, not the Mac. Expected interruption: about 5 seconds.",'
+          new = '"Finder can make window movement and file browsing feel heavier. Smallest action: restart Finder only, not the Mac. Expected interruption: about 5 seconds.".to_string(),'
+          if old not in text:
+              raise SystemExit('target Finder care string not found')
+          path.write_text(text.replace(old, new, 1))
+          PY
           git add app/desktop/src-tauri/src/pulse_core.rs
           git diff --cached --check
           git commit -m "Fix final recovery plan string type"
