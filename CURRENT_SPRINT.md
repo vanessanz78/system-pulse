@@ -258,3 +258,24 @@ UAT for the next build:
 2. Confirm the right panel shows a review/care row instead of "No action needed."
 3. Confirm Browser can still say Good when Chrome itself is not the pressure source.
 4. Confirm Codex is not offered as a restart action while it is actively working.
+
+## Current Self-Measurement Fix
+
+Date: 2 July 2026
+
+Vanessa caught a false positive where System Pulse measured its own short check-in/render spike and then said `system-pulse-desktop` was the application to care about.
+
+System Pulse must not blame itself for measurement overhead.
+
+Implementation direction:
+
+- Exclude System Pulse processes from the Applications pressure list.
+- Keep a second guard in the flow scoring layer so System Pulse cannot become the top pressure source if macOS reports the process name differently.
+- Continue showing real pressure sources such as Codex, desktop responsiveness, browsers, memory pressure, or disk pressure when they genuinely affect flow.
+
+UAT for the next build:
+
+1. Open Today and confirm `system-pulse-desktop` no longer appears in Application usage.
+2. Confirm Applications does not say System Pulse is the main app to care about.
+3. Confirm Codex or Desktop responsiveness can still appear when they are genuinely using noticeable CPU.
+4. Confirm the right panel does not show a stale "System Pulse hidden" message for normal usage.

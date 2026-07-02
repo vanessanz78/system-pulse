@@ -192,6 +192,9 @@ fn collect_top_applications(
         if browser_name(&process.command_name).is_some() {
             continue;
         }
+        if is_system_pulse_process(&process.command_name) {
+            continue;
+        }
         let name = normalize_application_name(&process.command_name);
         let entry = grouped.entry(name).or_insert((0, 0.0));
         entry.0 = entry.0.saturating_add(process.rss_bytes);
@@ -227,6 +230,16 @@ fn belongs_to_current_user(process: &ProcessInfo) -> bool {
     std::env::var("USER")
         .map(|user_name| process.user_name == user_name)
         .unwrap_or(true)
+}
+
+fn is_system_pulse_process(command_name: &str) -> bool {
+    let raw_name = command_name.to_lowercase();
+    let normalized_name = normalize_application_name(command_name).to_lowercase();
+
+    raw_name.contains("system-pulse")
+        || raw_name.contains("system pulse")
+        || normalized_name.contains("system-pulse")
+        || normalized_name.contains("system pulse")
 }
 
 #[derive(Default)]

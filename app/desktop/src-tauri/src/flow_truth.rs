@@ -41,6 +41,7 @@ fn top_non_browser_pressure<'a>(snapshot: &'a SystemSnapshot) -> Option<&'a Appl
         .applications
         .iter()
         .filter(|application| !is_observed_browser(snapshot, &application.name))
+        .filter(|application| !is_system_pulse_application(&application.name))
         .max_by(|left, right| {
             pressure_score(left)
                 .partial_cmp(&pressure_score(right))
@@ -132,6 +133,11 @@ fn is_observed_browser(snapshot: &SystemSnapshot, name: &str) -> bool {
         .browsers
         .iter()
         .any(|browser| browser.name == name)
+}
+
+fn is_system_pulse_application(name: &str) -> bool {
+    let normalized = name.to_lowercase();
+    normalized.contains("system-pulse") || normalized.contains("system pulse")
 }
 
 fn display_application_name(name: &str) -> &str {
