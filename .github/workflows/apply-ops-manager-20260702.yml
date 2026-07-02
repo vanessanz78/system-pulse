@@ -17,10 +17,10 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ github.token }}
-      - name: Apply final recovery plan string-type fix to main
+      - name: Apply protected Codex string-type fix to main
         shell: bash
         env:
-          EXPECTED_MAIN: bd8ed056f4329c81475bd2129cd05c977e207120
+          EXPECTED_MAIN: de79a120186cd60ba685e15ef9cf00da8814a861
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
@@ -36,13 +36,13 @@ jobs:
           from pathlib import Path
           path = Path('app/desktop/src-tauri/src/pulse_core.rs')
           text = path.read_text()
-          old = '"Finder can make window movement and file browsing feel heavier. Smallest action: restart Finder only, not the Mac. Expected interruption: about 5 seconds.",'
-          new = '"Finder can make window movement and file browsing feel heavier. Smallest action: restart Finder only, not the Mac. Expected interruption: about 5 seconds.".to_string(),'
+          old = '"Codex is active work. Smallest action: keep it running and archive inactive conversations later if you need more breathing room. Expected interruption now: none.",'
+          new = '"Codex is active work. Smallest action: keep it running and archive inactive conversations later if you need more breathing room. Expected interruption now: none.".to_string(),'
           if old not in text:
-              raise SystemExit('target Finder care string not found')
+              raise SystemExit('target Codex care string not found')
           path.write_text(text.replace(old, new, 1))
           PY
           git add app/desktop/src-tauri/src/pulse_core.rs
           git diff --cached --check
-          git commit -m "Fix final recovery plan string type"
+          git commit -m "Fix protected Codex recovery plan string type"
           git push origin HEAD:main
