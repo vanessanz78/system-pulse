@@ -12,100 +12,32 @@ jobs:
   apply:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout main
+      - name: Checkout patch branch
         uses: actions/checkout@v4
         with:
-          ref: main
           fetch-depth: 0
           token: ${{ github.token }}
       - name: Apply verified patch to main
         shell: bash
         env:
           EXPECTED_MAIN: 41e0589bfad1766bebff3f3de6acc453b96fc29e
+          PATCH_SOURCE_COMMIT: 601a3854acc65e2724ae04b207a6f7c5e11679f9
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git show "${PATCH_SOURCE_COMMIT}:.github/workflows/apply-ops-manager-20260702.yml" \
+            | awk '/PATCH_B64/{seen += 1; next} seen == 1 {print}' \
+            | tr -d '[:space:]' \
+            | base64 -d \
+            | gzip -d > /tmp/system-pulse.patch
+          git fetch origin main
+          git checkout -B main origin/main
           current="$(git rev-parse HEAD)"
           if [ "${current}" != "${EXPECTED_MAIN}" ]; then
             echo "main moved from expected base ${EXPECTED_MAIN} to ${current}; refusing to apply patch"
             exit 1
           fi
-          cat > /tmp/system-pulse.patch.gz.b64 <<'PATCH_B64'
-          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
-          AAA=
-PATCH_B64
-          tr -d '[:space:]' < /tmp/system-pulse.patch.gz.b64 | base64 -d | gzip -d > /tmp/system-pulse.patch
           git apply --check /tmp/system-pulse.patch
           git apply /tmp/system-pulse.patch
           git add CURRENT_SPRINT.md app/desktop/src-tauri/src/pulse_core.rs app/desktop/src/main.ts app/desktop/src/styles.css
