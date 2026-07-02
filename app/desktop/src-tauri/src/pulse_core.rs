@@ -872,7 +872,7 @@ fn application_impacts(snapshot: &SystemSnapshot) -> Vec<ApplicationImpact> {
             } else if index == 0 && is_finder && app_score < 58 {
                 (
                     "Restart Finder at your next break".to_string(),
-                    "Finder can make window movement and file browsing feel heavier. Smallest action: restart Finder only, not the Mac. Expected interruption: about 5 seconds.",
+                    "Finder can make window movement and file browsing feel heavier. Smallest action: restart Finder only, not the Mac. Expected interruption: about 5 seconds.".to_string(),
                     "+5 minutes".to_string(),
                     "restartFinder".to_string(),
                     "Finder".to_string(),
