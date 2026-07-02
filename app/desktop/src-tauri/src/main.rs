@@ -1,4 +1,5 @@
 mod collectors;
+mod flow_truth;
 mod models;
 mod pulse_core;
 
@@ -19,7 +20,9 @@ fn get_today_pulse() -> Result<TodayPulse, String> {
     let snapshot = collectors::collect_system_snapshot().map_err(|error| {
         format!("System Pulse could not read your local system data yet. {error}")
     })?;
-    Ok(pulse_core::evaluate(snapshot))
+    let mut pulse = pulse_core::evaluate(snapshot.clone());
+    flow_truth::apply(&snapshot, &mut pulse);
+    Ok(pulse)
 }
 
 #[tauri::command]
