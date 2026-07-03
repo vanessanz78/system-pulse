@@ -2,24 +2,33 @@ name: macOS Certified Release
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag to create or update, for example v0.1.13. Leave blank to use package.json."
+        required: false
+        type: string
+  release:
+    types:
+      - published
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   macos-certified:
     name: Build signed and notarized macOS DMG
     runs-on: macos-latest
     env:
-      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
       APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
       APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
       APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
       APPLE_API_KEY_P8_BASE64: ${{ secrets.APPLE_API_KEY_P8_BASE64 }}
       APPLE_ID: ${{ secrets.APPLE_ID }}
-      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+      INPUT_RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+      RELEASE_EVENT_TAG: ${{ github.event.release.tag_name }}
 
     steps:
       - name: Check out source
@@ -43,6 +52,30 @@ jobs:
         with:
           python-version: "3.x"
 
+      - name: Resolve release tag
+        id: release_tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          print(json.loads(Path("package.json").read_text())["version"])
+          PY
+          )
+
+          if [ -n "${RELEASE_EVENT_TAG:-}" ]; then
+            tag="$RELEASE_EVENT_TAG"
+          elif [ -n "${INPUT_RELEASE_TAG:-}" ]; then
+            tag="$INPUT_RELEASE_TAG"
+          else
+            tag="v$version"
+          fi
+
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Install JavaScript dependencies
         run: pnpm install --no-frozen-lockfile
 
@@ -58,7 +91,7 @@ jobs:
           set -euo pipefail
 
           missing=0
-          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY; do
+          for name in APPLE_TEAM_ID APPLE_CERTIFICATE_P12 APPLE_CERTIFICATE_PASSWORD; do
             if [ -z "${!name:-}" ]; then
               echo "::error::$name is required for Developer ID signing."
               missing=1
@@ -79,26 +112,65 @@ jobs:
                 missing=1
               fi
             done
-            if [ "$missing" -eq 0 ]; then
-              python3 - <<'PY' >> "$GITHUB_ENV"
-          import base64
-          import os
-          from pathlib import Path
-
-          key_id = os.environ["APPLE_API_KEY"]
-          target = Path(os.environ["RUNNER_TEMP"]) / f"AuthKey_{key_id}.p8"
-          target.write_bytes(base64.b64decode(os.environ["APPLE_API_KEY_P8_BASE64"]))
-          print(f"APPLE_API_KEY_PATH={target}")
-          PY
-            fi
-          elif [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_PASSWORD:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ]; then
+          elif [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ]; then
             echo "Using Apple ID notarization credentials."
           else
-            echo "::error::Provide either App Store Connect API secrets or Apple ID notarization secrets."
+            echo "::error::Provide the App Store Connect API secrets, or APPLE_ID plus APPLE_APP_SPECIFIC_PASSWORD."
             missing=1
           fi
 
           exit "$missing"
+
+      - name: Import Developer ID certificate
+        id: signing
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          certificate_path="$RUNNER_TEMP/developer-id-application.p12"
+          keychain_path="$RUNNER_TEMP/system-pulse-signing.keychain-db"
+          keychain_password=$(openssl rand -hex 24)
+
+          printf '%s' "$APPLE_CERTIFICATE_P12" | base64 --decode > "$certificate_path"
+
+          security create-keychain -p "$keychain_password" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$keychain_password" "$keychain_path"
+          security import "$certificate_path" \
+            -k "$keychain_path" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security
+          security list-keychains -d user -s "$keychain_path" $(security list-keychains -d user | tr -d '"')
+          security default-keychain -s "$keychain_path"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain_path"
+
+          signing_identity=$(security find-identity -v -p codesigning "$keychain_path" | sed -n 's/.*"\(Developer ID Application:.*\)".*/\1/p' | head -n 1)
+          if [ -z "$signing_identity" ]; then
+            echo "::error::No Developer ID Application signing identity found after importing the .p12 certificate."
+            security find-identity -v -p codesigning "$keychain_path" || true
+            exit 1
+          fi
+
+          echo "APPLE_SIGNING_IDENTITY=$signing_identity" >> "$GITHUB_ENV"
+          echo "identity=$signing_identity" >> "$GITHUB_OUTPUT"
+          echo "Imported Developer ID signing identity."
+
+      - name: Prepare notarization credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -n "${APPLE_API_KEY:-}" ] && [ -n "${APPLE_API_ISSUER:-}" ] && [ -n "${APPLE_API_KEY_P8_BASE64:-}" ]; then
+            api_key_path="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY}.p8"
+            printf '%s' "$APPLE_API_KEY_P8_BASE64" | base64 --decode > "$api_key_path"
+            chmod 600 "$api_key_path"
+            echo "APPLE_API_KEY_PATH=$api_key_path" >> "$GITHUB_ENV"
+            echo "Using App Store Connect API notarization credentials."
+          else
+            echo "APPLE_PASSWORD=$APPLE_APP_SPECIFIC_PASSWORD" >> "$GITHUB_ENV"
+            echo "Using Apple ID app-specific password notarization credentials."
+          fi
 
       - name: Use Developer ID signing for this build
         shell: bash
@@ -117,24 +189,47 @@ jobs:
         shell: bash
         run: pnpm --filter @system-pulse/desktop exec tauri build --bundles app,dmg
 
-      - name: Validate stapled notarization ticket
+      - name: Verify signed and stapled bundles
+        id: bundle
         shell: bash
         run: |
           set -euo pipefail
-          found=0
-          while IFS= read -r item; do
-            found=1
-            xcrun stapler validate "$item"
-          done < <(find app/desktop/src-tauri/target/release/bundle \( -name "*.app" -o -name "*.dmg" \) -print)
 
-          if [ "$found" -eq 0 ]; then
-            echo "::error::No app or DMG bundle found to validate."
+          app_path=$(find app/desktop/src-tauri/target/release/bundle -type d -name "*.app" -print -quit)
+          dmg_path=$(find app/desktop/src-tauri/target/release/bundle -type f -name "*.dmg" -print -quit)
+
+          if [ -z "$app_path" ] || [ -z "$dmg_path" ]; then
+            echo "::error::Expected signed .app and .dmg outputs were not found."
             exit 1
           fi
 
-      - name: Upload certified macOS bundle
+          codesign --verify --deep --strict --verbose=2 "$app_path"
+          xcrun stapler validate "$app_path"
+          xcrun stapler validate "$dmg_path"
+          spctl -a -vvv -t install "$app_path"
+          spctl -a -vvv -t open --context context:primary-signature "$dmg_path"
+
+          mkdir -p release-assets
+          release_dmg="release-assets/System-Pulse-${{ steps.release_tag.outputs.tag }}.dmg"
+          cp "$dmg_path" "$release_dmg"
+
+          echo "app_path=$app_path" >> "$GITHUB_OUTPUT"
+          echo "dmg_path=$release_dmg" >> "$GITHUB_OUTPUT"
+
+      - name: Upload certified macOS bundle artifact
         uses: actions/upload-artifact@v7
         with:
           name: system-pulse-macos-certified
-          path: app/desktop/src-tauri/target/release/bundle/**
+          path: |
+            ${{ steps.bundle.outputs.dmg_path }}
+            app/desktop/src-tauri/target/release/bundle/**
           if-no-files-found: error
+
+      - name: Attach DMG to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_tag.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: System Pulse ${{ steps.release_tag.outputs.tag }}
+          generate_release_notes: true
+          files: ${{ steps.bundle.outputs.dmg_path }}
