@@ -1,0 +1,186 @@
+name: Remove Nested Today Window Chrome
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/remove-nested-today-window-20260703.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-ui:
+    name: Patch Today view chrome
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Remove fake nested window chrome
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          main_path = Path("app/desktop/src/main.ts")
+          css_path = Path("app/desktop/src/styles.css")
+          workflow_path = Path(".github/workflows/remove-nested-today-window-20260703.yml")
+
+          main = main_path.read_text()
+          old_main = '''      <section class="today-window" aria-label="System Pulse">
+        <header class="today-titlebar">
+          <span class="window-lights" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </span>
+          <span>System Pulse</span>
+          <button id="today-refresh-button" class="today-refresh-button" type="button" aria-label="Refresh">&#8635;</button>
+        </header>
+        <div class="today-window-body">'''
+          new_main = '''      <section class="today-window" aria-label="System Pulse">
+        <button id="today-refresh-button" class="today-refresh-button" type="button" aria-label="Refresh">&#8635;</button>
+        <div class="today-window-body">'''
+          if old_main not in main:
+            raise SystemExit("Expected Today titlebar markup was not found.")
+          main_path.write_text(main.replace(old_main, new_main))
+
+          css = css_path.read_text()
+          old_css = '''.today-shell {
+  align-items: center;
+  background:
+    radial-gradient(circle at 16% 18%, rgba(155, 232, 108, 0.12), transparent 34%),
+    radial-gradient(circle at 82% 86%, rgba(82, 122, 134, 0.12), transparent 38%),
+    linear-gradient(145deg, #02070a 0%, #071012 52%, #020506 100%);
+  display: grid;
+}
+
+.today-window {
+  background:
+    radial-gradient(circle at 16% 22%, rgba(155, 232, 108, 0.15), transparent 34%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.035), transparent 30%),
+    rgba(10, 19, 22, 0.9);
+  border: 1px solid rgba(221, 255, 238, 0.22);
+  border-radius: 14px;
+  box-shadow:
+    0 32px 100px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  min-height: min(760px, calc(100vh - 2.7rem));
+  overflow: hidden;
+  width: 100%;
+}
+
+.today-titlebar {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.075);
+  border-bottom: 1px solid rgba(221, 255, 238, 0.09);
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  min-height: 2.45rem;
+  padding: 0 1rem;
+}
+
+.window-lights {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.window-lights span {
+  border-radius: 999px;
+  height: 0.8rem;
+  width: 0.8rem;
+}
+
+.window-lights span:nth-child(1) {
+  background: #ff5f57;
+}
+
+.window-lights span:nth-child(2) {
+  background: #ffbd2e;
+}
+
+.window-lights span:nth-child(3) {
+  background: #28c840;
+}
+
+.today-titlebar > span:nth-child(2) {
+  color: rgba(247, 250, 248, 0.92);
+  font-size: 0.9rem;
+  font-weight: 680;
+}
+
+.today-refresh-button {
+  background: transparent;
+  border: 0;
+  color: rgba(247, 250, 248, 0.88);
+  font-size: 1.22rem;
+  justify-self: end;
+  line-height: 1;
+  padding: 0.25rem;
+}
+
+.today-window-body {
+  padding: 2.05rem 2.25rem 1.55rem;
+}'''
+          new_css = '''.today-shell {
+  align-items: center;
+  background:
+    radial-gradient(circle at 16% 18%, rgba(155, 232, 108, 0.12), transparent 34%),
+    radial-gradient(circle at 82% 86%, rgba(82, 122, 134, 0.12), transparent 38%),
+    linear-gradient(145deg, #02070a 0%, #071012 52%, #020506 100%);
+  display: grid;
+  padding: 0;
+}
+
+.today-window {
+  background:
+    radial-gradient(circle at 16% 22%, rgba(155, 232, 108, 0.15), transparent 34%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.035), transparent 30%),
+    rgba(10, 19, 22, 0.9);
+  min-height: 100vh;
+  overflow: auto;
+  position: relative;
+  width: 100%;
+}
+
+.today-refresh-button {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(221, 255, 238, 0.14);
+  border-radius: 999px;
+  color: rgba(247, 250, 248, 0.88);
+  font-size: 1.22rem;
+  height: 2.1rem;
+  line-height: 1;
+  padding: 0.25rem;
+  position: absolute;
+  right: 1.35rem;
+  top: 1.15rem;
+  width: 2.1rem;
+  z-index: 2;
+}
+
+.today-window-body {
+  margin: 0 auto;
+  max-width: 1100px;
+  padding: 2.45rem 2.25rem 1.75rem;
+}'''
+          if old_css not in css:
+            raise SystemExit("Expected Today titlebar CSS block was not found.")
+          css_path.write_text(css.replace(old_css, new_css))
+
+          if workflow_path.exists():
+            workflow_path.unlink()
+          PY
+
+      - name: Commit UI fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git status --short
+          git add app/desktop/src/main.ts app/desktop/src/styles.css .github/workflows/remove-nested-today-window-20260703.yml
+          git commit -m "Remove nested Today window chrome"
+          git push
