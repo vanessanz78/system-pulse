@@ -1,0 +1,140 @@
+name: macOS Certified Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  macos-certified:
+    name: Build signed and notarized macOS DMG
+    runs-on: macos-latest
+    env:
+      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+      APPLE_API_KEY_P8_BASE64: ${{ secrets.APPLE_API_KEY_P8_BASE64 }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.7.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+
+      - name: Install JavaScript dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Check TypeScript
+        run: pnpm check
+
+      - name: Generate desktop icons
+        run: pnpm --filter @system-pulse/desktop prepare:icons
+
+      - name: Validate Apple release secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          missing=0
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::$name is required for Developer ID signing."
+              missing=1
+            fi
+          done
+
+          api_secret_count=0
+          for name in APPLE_API_KEY APPLE_API_ISSUER APPLE_API_KEY_P8_BASE64; do
+            if [ -n "${!name:-}" ]; then
+              api_secret_count=$((api_secret_count + 1))
+            fi
+          done
+
+          if [ "$api_secret_count" -gt 0 ]; then
+            for name in APPLE_API_KEY APPLE_API_ISSUER APPLE_API_KEY_P8_BASE64; do
+              if [ -z "${!name:-}" ]; then
+                echo "::error::$name is required when using App Store Connect API notarization."
+                missing=1
+              fi
+            done
+            if [ "$missing" -eq 0 ]; then
+              python3 - <<'PY' >> "$GITHUB_ENV"
+          import base64
+          import os
+          from pathlib import Path
+
+          key_id = os.environ["APPLE_API_KEY"]
+          target = Path(os.environ["RUNNER_TEMP"]) / f"AuthKey_{key_id}.p8"
+          target.write_bytes(base64.b64decode(os.environ["APPLE_API_KEY_P8_BASE64"]))
+          print(f"APPLE_API_KEY_PATH={target}")
+          PY
+            fi
+          elif [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_PASSWORD:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ]; then
+            echo "Using Apple ID notarization credentials."
+          else
+            echo "::error::Provide either App Store Connect API secrets or Apple ID notarization secrets."
+            missing=1
+          fi
+
+          exit "$missing"
+
+      - name: Use Developer ID signing for this build
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          config_path = Path("app/desktop/src-tauri/tauri.conf.json")
+          config = json.loads(config_path.read_text())
+          config.setdefault("bundle", {}).setdefault("macOS", {}).pop("signingIdentity", None)
+          config_path.write_text(json.dumps(config, indent=2) + "\n")
+          PY
+
+      - name: Build signed and notarized macOS DMG
+        shell: bash
+        run: pnpm --filter @system-pulse/desktop exec tauri build --bundles app,dmg
+
+      - name: Validate stapled notarization ticket
+        shell: bash
+        run: |
+          set -euo pipefail
+          found=0
+          while IFS= read -r item; do
+            found=1
+            xcrun stapler validate "$item"
+          done < <(find app/desktop/src-tauri/target/release/bundle \( -name "*.app" -o -name "*.dmg" \) -print)
+
+          if [ "$found" -eq 0 ]; then
+            echo "::error::No app or DMG bundle found to validate."
+            exit 1
+          fi
+
+      - name: Upload certified macOS bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: system-pulse-macos-certified
+          path: app/desktop/src-tauri/target/release/bundle/**
+          if-no-files-found: error

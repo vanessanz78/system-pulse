@@ -1,0 +1,5 @@
+run = "python3 website/server.py"
+entrypoint = "website/server.py"
+
+[nix]
+channel = "stable-24_05"

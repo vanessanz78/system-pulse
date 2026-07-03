@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>System Pulse - Calm Mac companion</title>
+    <meta
+      name="description"
+      content="System Pulse is a calm Mac companion that tells you if you can keep working and gives one quiet recovery step when your computer is close to reserve."
+    >
+    <link rel="preload" href="./assets/system-pulse-preview.svg" as="image">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <header class="site-nav" aria-label="Primary navigation">
+      <a class="brand" href="#top" aria-label="System Pulse home">
+        <span class="brand-score">81</span>
+        <span>System Pulse</span>
+      </a>
+      <nav>
+        <a href="#why">Why</a>
+        <a href="#flow">Flow</a>
+        <a href="#download">Download</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero" id="top" aria-labelledby="hero-title">
+        <img class="hero-image" src="./assets/system-pulse-preview.svg" alt="" aria-hidden="true">
+        <div class="hero-shade" aria-hidden="true"></div>
+        <div class="hero-content">
+          <p class="eyebrow">Mac companion for creative flow</p>
+          <h1 id="hero-title">System Pulse</h1>
+          <p class="lede">
+            A calm Mac companion that tells you if you can keep working, how much focus time you have, and the one recovery step worth taking.
+          </p>
+          <div class="hero-actions" aria-label="Primary actions">
+            <a class="button primary" href="https://github.com/vanessanz78/system-pulse/actions/runs/28593751193/artifacts/8040385477">Download private Mac beta</a>
+            <a class="button secondary" href="#download">Release plan</a>
+          </div>
+          <p class="note">Private beta is ready. Apple-certified public download is being prepared.</p>
+        </div>
+      </section>
+
+      <section class="band promise" id="why" aria-labelledby="promise-title">
+        <div class="section-copy">
+          <p class="eyebrow">Designed like Apple Battery, not Activity Monitor</p>
+          <h2 id="promise-title">One breath check-in.</h2>
+          <p>
+            System Pulse keeps the first answer simple: you are okay, you have enough time, or one thing needs care soon.
+          </p>
+        </div>
+        <div class="status-line" aria-label="System Pulse summary">
+          <div>
+            <span class="pulse-ring">87</span>
+          </div>
+          <div>
+            <strong>Good afternoon, Vanessa.</strong>
+            <span>You are in a good place to focus.</span>
+          </div>
+          <div>
+            <strong>4h 00m</strong>
+            <span>Estimated uninterrupted work time.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="band" id="flow" aria-labelledby="flow-title">
+        <div class="section-copy narrow">
+          <p class="eyebrow">What it watches</p>
+          <h2 id="flow-title">The resources that actually affect flow.</h2>
+          <p>
+            The app focuses on pressure from open applications, memory, processor load, browser sessions, battery, and disk space. It stays quiet until the Mac is close to reserve.
+          </p>
+        </div>
+        <div class="cards" aria-label="System Pulse resource areas">
+          <article class="resource-card">
+            <span class="status-dot good"></span>
+            <h3>Applications</h3>
+            <p>Names the app most likely to make your Mac feel heavy.</p>
+          </article>
+          <article class="resource-card">
+            <span class="status-dot good"></span>
+            <h3>Memory</h3>
+            <p>Shows the working room left before app switching starts to drag.</p>
+          </article>
+          <article class="resource-card attention">
+            <span class="status-dot warm"></span>
+            <h3>Browser</h3>
+            <p>Keeps Chrome and its renderers together so the story makes sense.</p>
+          </article>
+          <article class="resource-card">
+            <span class="status-dot good"></span>
+            <h3>Storage</h3>
+            <p>Reports used space consistently, with the reserve clearly visible.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="band split" aria-labelledby="trust-title">
+        <div class="section-copy">
+          <p class="eyebrow">Private by design</p>
+          <h2 id="trust-title">Your Mac stays the source of truth.</h2>
+          <p>
+            System Pulse is built for a local, personal check-in. The website promotes the app, but the app itself is designed to keep the computer story on your computer.
+          </p>
+        </div>
+        <div class="care-list" aria-label="System Pulse care model">
+          <div>
+            <strong>Calm first</strong>
+            <span>Reassures before it informs.</span>
+          </div>
+          <div>
+            <strong>Focus respecting</strong>
+            <span>Shows only what matters now.</span>
+          </div>
+          <div>
+            <strong>Actionable</strong>
+            <span>One quiet recovery step at a time.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="band download" id="download" aria-labelledby="download-title">
+        <div class="section-copy">
+          <p class="eyebrow">Download</p>
+          <h2 id="download-title">Private beta now. Certified release next.</h2>
+          <p>
+            The current Mac beta is downloadable from GitHub Actions. The public DMG needs Apple Developer ID signing and notarization before it becomes a polished download for everyone.
+          </p>
+        </div>
+        <div class="download-actions">
+          <a class="button primary" href="https://github.com/vanessanz78/system-pulse/actions/runs/28593751193/artifacts/8040385477">Download current DMG</a>
+          <a class="button secondary" href="https://github.com/vanessanz78/system-pulse/actions/runs/28593751193">View build run</a>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
