@@ -9,6 +9,9 @@
       content="System Pulse quietly watches your Mac and tells you what matters before your computer starts getting in your way."
     >
     <link rel="stylesheet" href="./styles.css">
+    <link rel="icon" type="image/svg+xml" href="./assets/system-pulse-icon.svg">
+    <link rel="preload" href="./assets/hero-heart-header.svg" as="image">
+    <link rel="stylesheet" href="./hero-image.css">
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -61,23 +64,10 @@
           </ul>
         </div>
 
-        <div class="hero-art" aria-hidden="true">
-          <svg class="pulse-line" viewBox="0 0 900 180">
-            <path d="M0 92h190l18-22 25 75 38-135 36 82h120l16-36 22 88 28-52h407"/>
-          </svg>
-          <div class="anatomy-heart">
-            <svg viewBox="0 0 320 360">
-              <path class="heart-core" d="M159 315C65 257 27 191 45 121c11-44 42-74 78-72 21 1 35 10 48 28 16-30 39-43 70-36 41 9 65 44 61 91-5 66-52 128-143 183Z"/>
-              <path class="heart-vein" d="M168 76c-10 47-7 88 9 121 13 27 12 57-3 92"/>
-              <path class="heart-vein" d="M124 76c39 33 53 78 42 134"/>
-              <path class="heart-vein" d="M213 62c-7 39-2 70 15 94"/>
-              <path class="heart-vein" d="M93 126c36 11 66 30 90 58"/>
-              <path class="heart-vein" d="M226 136c-37 18-63 43-78 75"/>
-              <path class="heart-vein" d="M74 172c44 2 79 17 107 45"/>
-              <path class="heart-vein" d="M123 254c27-12 55-12 84 1"/>
-            </svg>
-          </div>
+        <div class="hero-art hero-art-image" aria-hidden="true">
+          <img class="hero-heart-art" src="./assets/hero-heart-header.svg" alt="">
         </div>
+
       </section>
 
       <section class="panel stop-guessing" id="features" aria-labelledby="features-title">
@@ -299,7 +289,7 @@
           <p><strong>What's New</strong><a href="#changelog">View changelog</a></p>
         </div>
         <div class="app-icon" aria-hidden="true">
-          <svg viewBox="0 0 90 78"><path d="M45 70 14 42C-1 29 15 4 33 18l12 10 12-10c18-14 34 11 19 24L45 70Z"/><path d="M13 49h16l7-13 10 27 9-20h22"/></svg>
+          <img src="./assets/system-pulse-icon.svg" alt="">
         </div>
       </section>
     </main>
