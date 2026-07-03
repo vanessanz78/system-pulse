@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="System Pulse icon">
+  <defs>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.42 0 0 0 0 1 0 0 0 0 0.25 0 0 0 0.9 0" result="greenGlow"/>
+      <feMerge><feMergeNode in="greenGlow"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="#020808"/>
+  <g fill="none" stroke="#98f26e" stroke-width="28" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)">
+    <path d="M109 249C64 153 154 76 256 171c102-95 192-18 147 78"/>
+    <path d="M125 320 256 438 387 320"/>
+    <path d="M62 284h119l27-47 37 98 50-150 43 99h112"/>
+  </g>
+</svg>
