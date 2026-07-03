@@ -131,7 +131,7 @@ jobs:
           keychain_path="$RUNNER_TEMP/system-pulse-signing.keychain-db"
           keychain_password=$(openssl rand -hex 24)
 
-          printf '%s' "$APPLE_CERTIFICATE_P12" | base64 --decode > "$certificate_path"
+          printf '%s' "$APPLE_CERTIFICATE_P12" | openssl base64 -A -d -out "$certificate_path"
 
           security create-keychain -p "$keychain_password" "$keychain_path"
           security set-keychain-settings -lut 21600 "$keychain_path"
@@ -163,7 +163,7 @@ jobs:
 
           if [ -n "${APPLE_API_KEY:-}" ] && [ -n "${APPLE_API_ISSUER:-}" ] && [ -n "${APPLE_API_KEY_P8_BASE64:-}" ]; then
             api_key_path="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY}.p8"
-            printf '%s' "$APPLE_API_KEY_P8_BASE64" | base64 --decode > "$api_key_path"
+            printf '%s' "$APPLE_API_KEY_P8_BASE64" | openssl base64 -A -d -out "$api_key_path"
             chmod 600 "$api_key_path"
             echo "APPLE_API_KEY_PATH=$api_key_path" >> "$GITHUB_ENV"
             echo "Using App Store Connect API notarization credentials."
