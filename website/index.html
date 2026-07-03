@@ -3,137 +3,344 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>System Pulse - Calm Mac companion</title>
+    <title>System Pulse - Your Mac should help you focus</title>
     <meta
       name="description"
-      content="System Pulse is a calm Mac companion that tells you if you can keep working and gives one quiet recovery step when your computer is close to reserve."
+      content="System Pulse quietly watches your Mac and tells you what matters before your computer starts getting in your way."
     >
-    <link rel="preload" href="./assets/system-pulse-preview.svg" as="image">
     <link rel="stylesheet" href="./styles.css">
   </head>
   <body>
-    <header class="site-nav" aria-label="Primary navigation">
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header" aria-label="Primary navigation">
       <a class="brand" href="#top" aria-label="System Pulse home">
-        <span class="brand-score">81</span>
+        <svg class="brand-mark" viewBox="0 0 48 42" aria-hidden="true">
+          <path d="M24 37 7.5 22.4C-1.4 14.6 8.3.7 18.4 8.5L24 13l5.6-4.5C39.7.7 49.4 14.6 40.5 22.4L24 37Z" fill="none"/>
+          <path d="M6 26h8l4-7 6 14 5-10h13" fill="none"/>
+        </svg>
         <span>System Pulse</span>
       </a>
-      <nav>
-        <a href="#why">Why</a>
-        <a href="#flow">Flow</a>
+
+      <nav class="nav-links" aria-label="Page sections">
+        <a href="#features">Features</a>
+        <a href="#how-it-works">How It Works</a>
+        <a href="#for-you">For You</a>
+        <a href="#privacy">Privacy</a>
         <a href="#download">Download</a>
+        <a href="#roadmap">Roadmap</a>
+        <a href="#changelog">Changelog</a>
       </nav>
+
+      <a class="nav-download" href="https://github.com/vanessanz78/system-pulse/actions/runs/28593751193/artifacts/8040385477" target="_blank" rel="noreferrer">
+        <span class="download-icon" aria-hidden="true"></span>
+        Download for macOS
+      </a>
     </header>
 
-    <main>
+    <main id="main">
       <section class="hero" id="top" aria-labelledby="hero-title">
-        <img class="hero-image" src="./assets/system-pulse-preview.svg" alt="" aria-hidden="true">
-        <div class="hero-shade" aria-hidden="true"></div>
-        <div class="hero-content">
+        <div class="hero-copy">
           <p class="eyebrow">Mac companion for creative flow</p>
-          <h1 id="hero-title">System Pulse</h1>
-          <p class="lede">
-            A calm Mac companion that tells you if you can keep working, how much focus time you have, and the one recovery step worth taking.
+          <h1 id="hero-title">Your Mac should help you <span>focus.</span><br>Not steal it.</h1>
+          <p class="hero-text">
+            System Pulse quietly watches your Mac and tells you exactly what matters before your computer starts getting in your way.
           </p>
-          <div class="hero-actions" aria-label="Primary actions">
-            <a class="button primary" href="https://github.com/vanessanz78/system-pulse/actions/runs/28593751193/artifacts/8040385477">Download private Mac beta</a>
-            <a class="button secondary" href="#download">Release plan</a>
+          <div class="hero-actions">
+            <a class="button primary" href="https://github.com/vanessanz78/system-pulse/actions/runs/28593751193/artifacts/8040385477" target="_blank" rel="noreferrer">
+              <span class="download-icon" aria-hidden="true"></span>
+              Download for macOS
+            </a>
+            <p class="platform-note">macOS 11+<br>Apple Silicon and Intel</p>
           </div>
-          <p class="note">Private beta is ready. Apple-certified public download is being prepared.</p>
+          <ul class="trust-pills" aria-label="System Pulse promises">
+            <li>No account</li>
+            <li>No cloud</li>
+            <li>No subscriptions</li>
+            <li>100% private</li>
+          </ul>
         </div>
-      </section>
 
-      <section class="band promise" id="why" aria-labelledby="promise-title">
-        <div class="section-copy">
-          <p class="eyebrow">Designed like Apple Battery, not Activity Monitor</p>
-          <h2 id="promise-title">One breath check-in.</h2>
-          <p>
-            System Pulse keeps the first answer simple: you are okay, you have enough time, or one thing needs care soon.
-          </p>
-        </div>
-        <div class="status-line" aria-label="System Pulse summary">
-          <div>
-            <span class="pulse-ring">87</span>
-          </div>
-          <div>
-            <strong>Good afternoon, Vanessa.</strong>
-            <span>You are in a good place to focus.</span>
-          </div>
-          <div>
-            <strong>4h 00m</strong>
-            <span>Estimated uninterrupted work time.</span>
-          </div>
-        </div>
-      </section>
-
-      <section class="band" id="flow" aria-labelledby="flow-title">
-        <div class="section-copy narrow">
-          <p class="eyebrow">What it watches</p>
-          <h2 id="flow-title">The resources that actually affect flow.</h2>
-          <p>
-            The app focuses on pressure from open applications, memory, processor load, browser sessions, battery, and disk space. It stays quiet until the Mac is close to reserve.
-          </p>
-        </div>
-        <div class="cards" aria-label="System Pulse resource areas">
-          <article class="resource-card">
-            <span class="status-dot good"></span>
-            <h3>Applications</h3>
-            <p>Names the app most likely to make your Mac feel heavy.</p>
-          </article>
-          <article class="resource-card">
-            <span class="status-dot good"></span>
-            <h3>Memory</h3>
-            <p>Shows the working room left before app switching starts to drag.</p>
-          </article>
-          <article class="resource-card attention">
-            <span class="status-dot warm"></span>
-            <h3>Browser</h3>
-            <p>Keeps Chrome and its renderers together so the story makes sense.</p>
-          </article>
-          <article class="resource-card">
-            <span class="status-dot good"></span>
-            <h3>Storage</h3>
-            <p>Reports used space consistently, with the reserve clearly visible.</p>
-          </article>
-        </div>
-      </section>
-
-      <section class="band split" aria-labelledby="trust-title">
-        <div class="section-copy">
-          <p class="eyebrow">Private by design</p>
-          <h2 id="trust-title">Your Mac stays the source of truth.</h2>
-          <p>
-            System Pulse is built for a local, personal check-in. The website promotes the app, but the app itself is designed to keep the computer story on your computer.
-          </p>
-        </div>
-        <div class="care-list" aria-label="System Pulse care model">
-          <div>
-            <strong>Calm first</strong>
-            <span>Reassures before it informs.</span>
-          </div>
-          <div>
-            <strong>Focus respecting</strong>
-            <span>Shows only what matters now.</span>
-          </div>
-          <div>
-            <strong>Actionable</strong>
-            <span>One quiet recovery step at a time.</span>
+        <div class="hero-art" aria-hidden="true">
+          <svg class="pulse-line" viewBox="0 0 900 180">
+            <path d="M0 92h190l18-22 25 75 38-135 36 82h120l16-36 22 88 28-52h407"/>
+          </svg>
+          <div class="anatomy-heart">
+            <svg viewBox="0 0 320 360">
+              <path class="heart-core" d="M159 315C65 257 27 191 45 121c11-44 42-74 78-72 21 1 35 10 48 28 16-30 39-43 70-36 41 9 65 44 61 91-5 66-52 128-143 183Z"/>
+              <path class="heart-vein" d="M168 76c-10 47-7 88 9 121 13 27 12 57-3 92"/>
+              <path class="heart-vein" d="M124 76c39 33 53 78 42 134"/>
+              <path class="heart-vein" d="M213 62c-7 39-2 70 15 94"/>
+              <path class="heart-vein" d="M93 126c36 11 66 30 90 58"/>
+              <path class="heart-vein" d="M226 136c-37 18-63 43-78 75"/>
+              <path class="heart-vein" d="M74 172c44 2 79 17 107 45"/>
+              <path class="heart-vein" d="M123 254c27-12 55-12 84 1"/>
+            </svg>
           </div>
         </div>
       </section>
 
-      <section class="band download" id="download" aria-labelledby="download-title">
-        <div class="section-copy">
-          <p class="eyebrow">Download</p>
-          <h2 id="download-title">Private beta now. Certified release next.</h2>
-          <p>
-            The current Mac beta is downloadable from GitHub Actions. The public DMG needs Apple Developer ID signing and notarization before it becomes a polished download for everyone.
-          </p>
+      <section class="panel stop-guessing" id="features" aria-labelledby="features-title">
+        <h2 id="features-title">Stop guessing.</h2>
+        <div class="feature-grid">
+          <article class="feature-card know">
+            <div class="feature-icon eye-icon" aria-hidden="true"></div>
+            <h3>Know</h3>
+            <p>See your Mac's health in one glance.</p>
+            <div class="mini-health">
+              <span>Health</span>
+              <strong>Good</strong>
+              <svg viewBox="0 0 240 64" aria-hidden="true"><path d="M5 48c19-24 36 15 55-6s29 20 50-2 28 12 48-2 28 12 52-16"/></svg>
+              <b>87</b>
+            </div>
+          </article>
+
+          <article class="feature-card understand">
+            <div class="feature-icon brain-icon" aria-hidden="true"></div>
+            <h3>Understand</h3>
+            <p>Plain English instead of Activity Monitor.</p>
+            <div class="mini-message">
+              <span>What's happening</span>
+              <strong>Spotlight is indexing.</strong>
+              <small>Nothing to worry about.</small>
+            </div>
+          </article>
+
+          <article class="feature-card act">
+            <div class="feature-icon bolt-icon" aria-hidden="true"></div>
+            <h3>Act</h3>
+            <p>One click fixes. No technical knowledge required.</p>
+            <div class="mini-action">
+              <span>Recommended Action</span>
+              <strong>Restart Chrome</strong>
+              <small>at your next break.</small>
+              <button type="button">Do it</button>
+            </div>
+          </article>
         </div>
-        <div class="download-actions">
-          <a class="button primary" href="https://github.com/vanessanz78/system-pulse/actions/runs/28593751193/artifacts/8040385477">Download current DMG</a>
-          <a class="button secondary" href="https://github.com/vanessanz78/system-pulse/actions/runs/28593751193">View build run</a>
+
+        <div class="product-window" aria-label="System Pulse product preview">
+          <div class="window-bar">
+            <span></span><span></span><span></span>
+            <strong>Everything you need. Nothing you don't.</strong>
+          </div>
+          <div class="product-body">
+            <aside class="product-sidebar" aria-label="System Pulse sections">
+              <a class="active" href="#features">Overview</a>
+              <a href="#features">Applications</a>
+              <a href="#features">Memory</a>
+              <a href="#features">Processor</a>
+              <a href="#features">Storage</a>
+              <a href="#features">Thermals</a>
+              <a href="#features">Power</a>
+              <a href="#features">Settings</a>
+            </aside>
+            <div class="product-main">
+              <section class="health-widget">
+                <p>Health</p>
+                <h3>Good</h3>
+                <div class="score-ring">87</div>
+                <span>Your Mac is in good shape.</span>
+                <svg viewBox="0 0 260 72" aria-hidden="true"><path d="M6 54c17-28 36 12 55-8s30 14 50-2 31 20 52 0 34 15 66-28"/></svg>
+              </section>
+              <section class="status-widget">
+                <p>What's happening</p>
+                <div>
+                  <strong>Spotlight is indexing.</strong>
+                  <span>Nothing to worry about.</span>
+                </div>
+                <div>
+                  <strong>Memory pressure is normal.</strong>
+                  <span>Plenty of headroom.</span>
+                </div>
+                <a href="#features">View details</a>
+              </section>
+              <section class="action-widget">
+                <p>Recommended Action</p>
+                <strong>Restart Chrome</strong>
+                <span>at your next break.</span>
+                <button type="button">Do it</button>
+                <small>Why? Chrome is using more memory than usual.</small>
+              </section>
+              <div class="metric"><span>CPU</span><strong>23%</strong><small>Normal</small></div>
+              <div class="metric"><span>Memory</span><strong>54%</strong><small>8.6 GB / 16 GB</small></div>
+              <div class="metric"><span>Storage</span><strong>62%</strong><small>312 GB / 500 GB</small></div>
+              <div class="metric"><span>Temperature</span><strong>46 C</strong><small>Normal</small></div>
+              <div class="metric"><span>Network</span><strong>12 KB/s</strong><small>8 KB/s</small></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel how" id="how-it-works" aria-labelledby="how-title">
+        <h2 id="how-title">How it works</h2>
+        <div class="flow-steps">
+          <article>
+            <span class="flow-icon observe" aria-hidden="true"></span>
+            <h3>Observe</h3>
+            <p>We monitor what matters in real time.</p>
+          </article>
+          <article>
+            <span class="flow-icon interpret" aria-hidden="true"></span>
+            <h3>Interpret</h3>
+            <p>We translate complex data into plain English.</p>
+          </article>
+          <article>
+            <span class="flow-icon prioritise" aria-hidden="true"></span>
+            <h3>Prioritise</h3>
+            <p>We focus on what impacts your Mac.</p>
+          </article>
+          <article>
+            <span class="flow-icon protect" aria-hidden="true"></span>
+            <h3>Protect Flow</h3>
+            <p>You stay focused. We help your Mac keep running smoothly.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel before-after" aria-labelledby="before-after-title">
+        <h2 id="before-after-title">Before and after System Pulse</h2>
+        <div class="compare-grid">
+          <article>
+            <h3>Before System Pulse</h3>
+            <p>Too many tools. Too much noise.</p>
+            <div class="messy-stack" aria-hidden="true">
+              <div></div><div></div><div></div><div></div>
+              <span></span><span></span><span></span><span></span>
+            </div>
+          </article>
+          <div class="arrow" aria-hidden="true">-></div>
+          <article>
+            <h3>After System Pulse</h3>
+            <p>One calm view. Clear answers.</p>
+            <div class="calm-preview" aria-hidden="true">
+              <div class="calm-score">87</div>
+              <div><strong>Health</strong><span>Good</span></div>
+              <div><strong>What's happening</strong><span>Spotlight is indexing.</span></div>
+              <div><strong>CPU</strong><span>23%</span></div>
+              <div><strong>Memory</strong><span>54%</span></div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel for-you" id="for-you" aria-labelledby="for-you-title">
+        <h2 id="for-you-title">Built for people who create.</h2>
+        <div class="persona-grid">
+          <article><span aria-hidden="true">&lt;/&gt;</span><h3>Developer</h3><p>Stay in flow while your Mac compiles.</p></article>
+          <article><span aria-hidden="true">//</span><h3>Designer</h3><p>Preview, render and ship on time.</p></article>
+          <article><span aria-hidden="true">^</span><h3>Trader</h3><p>Every second counts. Keep your edge.</p></article>
+          <article><span aria-hidden="true">T</span><h3>Writer</h3><p>Distraction-free. Always.</p></article>
+          <article><span aria-hidden="true">[]</span><h3>Student</h3><p>Focus longer. Stress less.</p></article>
+          <article><span aria-hidden="true">#</span><h3>Business Owner</h3><p>Work smarter. Not harder.</p></article>
+        </div>
+      </section>
+
+      <section class="panel plain-english" aria-labelledby="plain-title">
+        <h2 id="plain-title">Never asks you to become an engineer.</h2>
+        <div class="translation-grid">
+          <article>
+            <p>Memory pressure exceeds critical level...</p>
+            <strong>Instead:</strong>
+            <span>Memory is getting tight. Finish what you're doing first.</span>
+          </article>
+          <article>
+            <p>mdworker_shared CPU usage high...</p>
+            <strong>Instead:</strong>
+            <span>Spotlight is indexing. Nothing to worry about.</span>
+          </article>
+          <article>
+            <p>Swap usage 1.62 GB of 4.00 GB...</p>
+            <strong>Instead:</strong>
+            <span>Your Mac is working hard. Let's keep it comfortable.</span>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel privacy" id="privacy" aria-labelledby="privacy-title">
+        <div class="privacy-lock" aria-hidden="true"></div>
+        <div>
+          <h2 id="privacy-title">Your data stays yours.</h2>
+          <p>Everything happens locally on your Mac. No account. No cloud. No telemetry. No tracking. Ever.</p>
+        </div>
+        <ul class="privacy-badges" aria-label="Privacy promises">
+          <li>100% Private</li>
+          <li>No Telemetry</li>
+          <li>No Cloud</li>
+          <li>No Account</li>
+        </ul>
+      </section>
+
+      <section class="panel notes-grid" id="roadmap" aria-labelledby="roadmap-title">
+        <article>
+          <p class="eyebrow">Roadmap</p>
+          <h2 id="roadmap-title">Certified macOS release path.</h2>
+          <p>Developer ID signing and Apple notarization are the remaining step before the public DMG becomes the main website download.</p>
+        </article>
+        <article id="changelog">
+          <p class="eyebrow">Changelog</p>
+          <h2>Version 1.0.0</h2>
+          <p>Focus-first dashboard, calm menu view, local resource intelligence, and a download path ready for the certified release.</p>
+        </article>
+      </section>
+
+      <section class="panel final-cta" id="download" aria-labelledby="download-title">
+        <div>
+          <h2 id="download-title">Take back your focus.</h2>
+          <p>Download System Pulse for macOS today.</p>
+          <a class="button primary" href="https://github.com/vanessanz78/system-pulse/actions/runs/28593751193/artifacts/8040385477" target="_blank" rel="noreferrer">
+            <span class="download-icon" aria-hidden="true"></span>
+            Download for macOS
+          </a>
+        </div>
+        <div class="download-meta">
+          <p><strong>macOS 11+</strong><span>Apple Silicon and Intel</span></p>
+          <p><strong>Current beta</strong><span>Certified DMG in progress</span></p>
+          <p><strong>What's New</strong><a href="#changelog">View changelog</a></p>
+        </div>
+        <div class="app-icon" aria-hidden="true">
+          <svg viewBox="0 0 90 78"><path d="M45 70 14 42C-1 29 15 4 33 18l12 10 12-10c18-14 34 11 19 24L45 70Z"/><path d="M13 49h16l7-13 10 27 9-20h22"/></svg>
         </div>
       </section>
     </main>
+
+    <footer class="site-footer">
+      <div class="footer-brand">
+        <a class="brand" href="#top">
+          <svg class="brand-mark" viewBox="0 0 48 42" aria-hidden="true">
+            <path d="M24 37 7.5 22.4C-1.4 14.6 8.3.7 18.4 8.5L24 13l5.6-4.5C39.7.7 49.4 14.6 40.5 22.4L24 37Z" fill="none"/>
+            <path d="M6 26h8l4-7 6 14 5-10h13" fill="none"/>
+          </svg>
+          <span>System Pulse</span>
+        </a>
+        <p>Your Mac. Your focus. We've got your back.</p>
+      </div>
+      <nav aria-label="Footer product links">
+        <strong>Product</strong>
+        <a href="#features">Features</a>
+        <a href="#how-it-works">How It Works</a>
+        <a href="#for-you">For You</a>
+        <a href="#download">Download</a>
+      </nav>
+      <nav aria-label="Footer resource links">
+        <strong>Resources</strong>
+        <a href="#roadmap">Roadmap</a>
+        <a href="#changelog">Changelog</a>
+        <a href="https://github.com/vanessanz78/system-pulse" target="_blank" rel="noreferrer">GitHub</a>
+        <a href="https://github.com/vanessanz78/system-pulse/actions/runs/28593751193" target="_blank" rel="noreferrer">Build Run</a>
+      </nav>
+      <nav aria-label="Footer legal links">
+        <strong>Legal</strong>
+        <a href="#privacy">Privacy Policy</a>
+        <a href="#privacy">Terms of Use</a>
+        <a href="#privacy">Third-Party Licenses</a>
+      </nav>
+      <nav aria-label="Footer connect links">
+        <strong>Connect</strong>
+        <a href="https://github.com/vanessanz78/system-pulse" target="_blank" rel="noreferrer">GitHub</a>
+        <a href="#download">Contact</a>
+      </nav>
+      <p class="copyright">© 2026 System Pulse. All rights reserved.</p>
+    </footer>
   </body>
 </html>
