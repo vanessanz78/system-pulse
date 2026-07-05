@@ -119,21 +119,9 @@ a {
 }
 
 .brand-mark {
-  width: 34px;
-  height: 34px;
-  overflow: visible;
-}
-
-.brand-mark path,
-.app-icon path {
-  stroke: var(--green);
-  stroke-width: 2.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.brand-mark path:first-child,
-.app-icon path:first-child {
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
   filter: drop-shadow(0 0 8px rgba(152, 242, 110, 0.55));
 }
 
@@ -1073,16 +1061,6 @@ h3 {
   border-radius: 28px;
   background: linear-gradient(145deg, rgba(26, 38, 40, 0.96), rgba(4, 13, 15, 0.96));
   box-shadow: inset 0 0 28px rgba(255, 255, 255, 0.04), 0 0 50px rgba(152, 242, 110, 0.2);
-}
-
-.app-icon svg {
-  width: 86px;
-  height: 74px;
-  overflow: visible;
-}
-
-.app-icon path {
-  fill: none;
 }
 
 .site-footer {

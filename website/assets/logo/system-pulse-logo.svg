@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 156" role="img" aria-label="System Pulse logo">
+  <defs>
+    <filter id="logo-glow" x="-35%" y="-45%" width="170%" height="190%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.56 0 0 0 0 1 0 0 0 0 0.39 0 0 0 0.72 0" result="green"/>
+      <feMerge>
+        <feMergeNode in="green"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="720" height="156" rx="28" fill="none"/>
+  <g transform="translate(12 12) scale(.26)" fill="none" stroke="#8eff63" stroke-width="31" stroke-linecap="round" stroke-linejoin="round" filter="url(#logo-glow)">
+    <path d="M97 255C45 147 154 62 256 159c102-97 211-12 159 96"/>
+    <path d="M128 315 256 431 384 315"/>
+    <path d="M55 285h118l29-48 39 98 51-151 44 101h121"/>
+  </g>
+  <text x="166" y="94" fill="#f5f6f3" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif" font-size="54" font-weight="800" letter-spacing="0">System Pulse</text>
+</svg>
