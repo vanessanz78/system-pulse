@@ -99,7 +99,12 @@ h2 {
 }
 
 .trust-pills {
-  gap: 16px clamp(22px, 4vw, 42px);
+  flex-wrap: nowrap;
+  gap: 14px clamp(14px, 2.4vw, 30px);
+}
+
+.trust-pills li {
+  white-space: nowrap;
 }
 
 .trust-pills li,
@@ -111,12 +116,23 @@ h2 {
   min-height: clamp(420px, 42vw, 560px);
   display: grid;
   place-items: center;
-  overflow: hidden;
+  overflow: visible;
   isolation: isolate;
 }
 
 .hero-art::before {
   content: none;
+}
+
+.hero-visual-image {
+  width: min(780px, 100%);
+  height: auto;
+  border-radius: 24px;
+  object-fit: contain;
+  object-position: center;
+  filter:
+    drop-shadow(0 28px 62px rgba(0, 0, 0, 0.5))
+    drop-shadow(0 0 36px rgba(140, 255, 106, 0.22));
 }
 
 .pulseHeroVisual {
@@ -449,6 +465,11 @@ h2 {
 .flow-icon {
   width: 60px;
   height: 60px;
+  object-fit: cover;
+  object-position: center;
+  border-radius: 18px;
+  background: transparent;
+  padding: 0;
 }
 
 .mini-health,
@@ -462,6 +483,28 @@ h2 {
   width: min(1010px, 88vw);
   margin-top: 32px;
   border-radius: 10px;
+}
+
+.product-window.image-window {
+  width: min(1050px, 92vw);
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.product-preview-image,
+.comparison-image {
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+  object-position: center;
+  border: 1px solid rgba(184, 230, 198, 0.18);
+  border-radius: 12px;
+  background: rgba(2, 9, 11, 0.94);
+  box-shadow:
+    0 24px 76px rgba(0, 0, 0, 0.42),
+    0 0 48px rgba(97, 255, 91, 0.08);
 }
 
 .window-bar {
@@ -555,6 +598,11 @@ h2 {
   min-height: 246px;
 }
 
+.comparison-image {
+  margin-top: 18px;
+  aspect-ratio: 1493 / 1054;
+}
+
 .persona-grid {
   gap: 16px;
   margin-top: 24px;
@@ -572,6 +620,15 @@ h2 {
   border: 0;
   background: transparent;
   font-size: 1.9rem;
+}
+
+.persona-icon {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 12px;
+  border-radius: 20px;
+  object-fit: cover;
+  box-shadow: 0 0 22px rgba(140, 255, 106, 0.16);
 }
 
 .plain-english {
@@ -611,6 +668,40 @@ h2 {
   grid-template-columns: 210px minmax(0, 1fr) minmax(360px, 0.85fr);
 }
 
+.privacy-lock {
+  width: 160px;
+  height: 160px;
+  object-fit: cover;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.privacy-lock::before,
+.privacy-lock::after,
+.flow-icon::before,
+.flow-icon::after,
+.feature-icon::before,
+.feature-icon::after {
+  content: none;
+}
+
+.privacy-badges li {
+  justify-content: flex-start;
+}
+
+.privacy-badges li::before {
+  content: none;
+}
+
+.privacy-badges img {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  border-radius: 11px;
+  object-fit: cover;
+  box-shadow: 0 0 18px rgba(140, 255, 106, 0.16);
+}
+
 .final-cta {
   grid-template-columns: minmax(0, 1.3fr) minmax(240px, 0.8fr) 150px;
 }
@@ -635,7 +726,7 @@ h2 {
     grid-template-columns: 1fr;
   }
 
-  .pulseHeroVisual {
+  .hero-visual-image {
     width: min(780px, 100%);
   }
 
@@ -663,8 +754,8 @@ h2 {
     min-height: 420px;
   }
 
-  .pulseHeroVisual {
-    min-height: 420px;
+  .hero-visual-image {
+    width: min(700px, 100%);
   }
 
   .pulseCore {
@@ -714,12 +805,18 @@ h2 {
 }
 
 @media (max-width: 620px) {
+  .trust-pills {
+    flex-wrap: wrap;
+    gap: 12px 18px;
+  }
+
   .hero-art {
     min-height: 360px;
   }
 
-  .pulseHeroVisual {
-    min-height: 360px;
+  .hero-visual-image {
+    width: min(620px, 100%);
+    border-radius: 18px;
   }
 
   .pulseCore {
