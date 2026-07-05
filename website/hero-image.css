@@ -108,38 +108,299 @@ h2 {
 }
 
 .hero-art {
-  min-height: clamp(350px, 37vw, 560px);
+  min-height: clamp(420px, 42vw, 560px);
   display: grid;
   place-items: center;
-  overflow: visible;
+  overflow: hidden;
   isolation: isolate;
 }
 
 .hero-art::before {
-  content: "";
-  position: absolute;
-  inset: 9% -5% 5% 8%;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    linear-gradient(90deg, transparent 0 10%, rgba(116, 255, 98, 0.08) 43%, rgba(116, 255, 98, 0.1) 57%, transparent 92%),
-    radial-gradient(ellipse at 52% 58%, rgba(116, 255, 98, 0.16), transparent 53%);
-  filter: blur(6px);
+  content: none;
 }
 
-.hero-heart-img {
-  width: min(760px, 116%);
-  max-width: none;
-  height: auto;
-  display: block;
-  object-fit: contain;
-  object-position: center;
-  border: 0;
-  border-radius: 0;
+.pulseHeroVisual {
+  position: relative;
+  width: min(760px, 100%);
+  min-height: 520px;
+  overflow: hidden;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
-  filter:
-    drop-shadow(0 0 18px rgba(126, 255, 96, 0.32))
-    drop-shadow(0 0 54px rgba(126, 255, 96, 0.18));
+  contain: paint;
+}
+
+.pulseGlow {
+  position: absolute;
+  width: min(540px, 76%);
+  aspect-ratio: 1;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle, rgba(140, 255, 106, 0.28), transparent 58%),
+    radial-gradient(circle, rgba(48, 185, 87, 0.16), transparent 72%);
+  filter: blur(28px);
+  opacity: 0.82;
+  animation: glowBreath 8s ease-in-out infinite;
+  z-index: 0;
+}
+
+.pulseWave {
+  position: absolute;
+  inset: 21% -6% auto -6%;
+  width: 112%;
+  height: 260px;
+  z-index: 1;
+  opacity: 0.9;
+  filter: drop-shadow(0 0 12px rgba(140, 255, 106, 0.55));
+}
+
+.pulseWaveBase,
+.pulseWaveActive {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.pulseWaveBase {
+  stroke: rgba(140, 255, 106, 0.2);
+  stroke-width: 2;
+}
+
+.pulseWaveActive {
+  stroke: rgba(140, 255, 106, 0.94);
+  stroke-width: 2.4;
+  stroke-dasharray: 180 900;
+  animation: waveTravel 4.8s linear infinite;
+}
+
+.pulseCore {
+  position: relative;
+  width: min(34vw, 314px);
+  height: min(34vw, 314px);
+  min-width: 230px;
+  min-height: 230px;
+  border-radius: 999px;
+  z-index: 3;
+  animation: coreFloat 7s ease-in-out infinite;
+}
+
+.coreRing {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(140, 255, 106, 0.48);
+  box-shadow:
+    0 0 28px rgba(140, 255, 106, 0.32),
+    inset 0 0 34px rgba(140, 255, 106, 0.16);
+}
+
+.ringOne {
+  transform: scaleX(1.08) scaleY(0.92);
+  animation: rotateOne 18s linear infinite;
+}
+
+.ringTwo {
+  inset: 11%;
+  opacity: 0.75;
+  transform: scaleX(0.92) scaleY(1.1);
+  animation: rotateTwo 14s linear infinite reverse;
+}
+
+.ringThree {
+  inset: 24%;
+  opacity: 0.6;
+  animation: pulseRing 4s ease-in-out infinite;
+}
+
+.ringFour {
+  inset: 36%;
+  opacity: 0.42;
+  border-color: rgba(255, 255, 255, 0.34);
+  box-shadow:
+    0 0 18px rgba(140, 255, 106, 0.22),
+    inset 0 0 22px rgba(255, 255, 255, 0.08);
+}
+
+.coreDot {
+  position: absolute;
+  inset: 46%;
+  border-radius: 999px;
+  background: #8cff6a;
+  box-shadow:
+    0 0 18px rgba(140, 255, 106, 1),
+    0 0 60px rgba(140, 255, 106, 0.75);
+}
+
+.particle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(140, 255, 106, 0.95);
+  box-shadow: 0 0 14px rgba(140, 255, 106, 0.95);
+  animation: particleFloat 6s ease-in-out infinite;
+}
+
+.particle1 { top: 12%; left: 42%; animation-delay: -0.2s; }
+.particle2 { top: 18%; left: 66%; animation-delay: -1.4s; }
+.particle3 { top: 28%; left: 24%; animation-delay: -2.1s; }
+.particle4 { top: 36%; left: 78%; animation-delay: -3.3s; }
+.particle5 { top: 48%; left: 14%; animation-delay: -4.1s; }
+.particle6 { top: 55%; left: 88%; animation-delay: -1.8s; }
+.particle7 { top: 68%; left: 26%; animation-delay: -2.8s; }
+.particle8 { top: 76%; left: 62%; animation-delay: -3.9s; }
+.particle9 { top: 84%; left: 44%; animation-delay: -0.8s; }
+.particle10 { top: 22%; left: 48%; animation-delay: -4.8s; }
+.particle11 { top: 40%; left: 58%; animation-delay: -2.4s; }
+.particle12 { top: 62%; left: 38%; animation-delay: -1.1s; }
+.particle13 { top: 30%; left: 52%; animation-delay: -3.7s; }
+.particle14 { top: 70%; left: 74%; animation-delay: -4.4s; }
+.particle15 { top: 16%; left: 30%; animation-delay: -2.9s; }
+.particle16 { top: 82%; left: 20%; animation-delay: -1.7s; }
+.particle17 { top: 46%; left: 70%; animation-delay: -0.5s; }
+.particle18 { top: 58%; left: 52%; animation-delay: -3.1s; }
+
+.statusCard {
+  position: absolute;
+  z-index: 4;
+  min-width: 132px;
+  padding: 14px 16px;
+  border: 1px solid rgba(140, 255, 106, 0.28);
+  border-radius: 16px;
+  background: rgba(5, 20, 12, 0.52);
+  backdrop-filter: blur(16px);
+  box-shadow:
+    0 18px 60px rgba(0, 0, 0, 0.24),
+    0 0 28px rgba(140, 255, 106, 0.08);
+  color: #ffffff;
+  animation: cardFloat 6s ease-in-out infinite;
+}
+
+.statusCard span {
+  display: block;
+  margin-bottom: 4px;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.75rem;
+  font-weight: 760;
+}
+
+.statusCard strong {
+  display: block;
+  color: #ffffff;
+  font-size: 1.25rem;
+  line-height: 1.1;
+}
+
+.statusCard small {
+  display: block;
+  margin-top: 6px;
+  color: rgba(140, 255, 106, 0.78);
+  font-size: 0.68rem;
+  font-weight: 720;
+}
+
+.cardCpu {
+  top: 16%;
+  right: 16%;
+  animation-delay: -1s;
+}
+
+.cardMemory {
+  top: 31%;
+  left: 9%;
+  animation-delay: -2.4s;
+}
+
+.cardSsd {
+  right: 8%;
+  bottom: 24%;
+  animation-delay: -3.2s;
+}
+
+.cardBattery {
+  left: 17%;
+  bottom: 15%;
+  animation-delay: -4.1s;
+}
+
+@keyframes glowBreath {
+  0%, 100% {
+    transform: scale(0.96);
+    opacity: 0.62;
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+}
+
+@keyframes waveTravel {
+  0% {
+    stroke-dashoffset: 900;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes coreFloat {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-10px) scale(1.018);
+  }
+}
+
+@keyframes rotateOne {
+  from {
+    transform: rotate(0deg) scaleX(1.08) scaleY(0.92);
+  }
+  to {
+    transform: rotate(360deg) scaleX(1.08) scaleY(0.92);
+  }
+}
+
+@keyframes rotateTwo {
+  from {
+    transform: rotate(0deg) scaleX(0.92) scaleY(1.1);
+  }
+  to {
+    transform: rotate(360deg) scaleX(0.92) scaleY(1.1);
+  }
+}
+
+@keyframes pulseRing {
+  0%, 100% {
+    transform: scale(0.96);
+    opacity: 0.42;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.86;
+  }
+}
+
+@keyframes particleFloat {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(0.8);
+    opacity: 0.35;
+  }
+  50% {
+    transform: translate3d(8px, -12px, 0) scale(1.2);
+    opacity: 1;
+  }
+}
+
+@keyframes cardFloat {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-9px);
+  }
 }
 
 .panel {
@@ -374,8 +635,8 @@ h2 {
     grid-template-columns: 1fr;
   }
 
-  .hero-heart-img {
-    width: min(760px, 112%);
+  .pulseHeroVisual {
+    width: min(780px, 100%);
   }
 
   .flow-steps {
@@ -399,7 +660,40 @@ h2 {
   }
 
   .hero-art {
-    min-height: 310px;
+    min-height: 420px;
+  }
+
+  .pulseHeroVisual {
+    min-height: 420px;
+  }
+
+  .pulseCore {
+    width: 260px;
+    height: 260px;
+    min-width: 220px;
+    min-height: 220px;
+  }
+
+  .statusCard {
+    min-width: 118px;
+    padding: 12px 14px;
+  }
+
+  .cardCpu {
+    top: 12%;
+    right: 8%;
+  }
+
+  .cardMemory {
+    left: 4%;
+  }
+
+  .cardSsd {
+    right: 3%;
+  }
+
+  .cardBattery {
+    left: 8%;
   }
 
   .product-window {
@@ -420,12 +714,35 @@ h2 {
 }
 
 @media (max-width: 620px) {
-  .hero-heart-img {
-    width: 144%;
-    transform: translateX(5%);
+  .hero-art {
+    min-height: 360px;
+  }
+
+  .pulseHeroVisual {
+    min-height: 360px;
+  }
+
+  .pulseCore {
+    width: 240px;
+    height: 240px;
+  }
+
+  .statusCard {
+    display: none;
   }
 
   .nav-download {
     display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulseGlow,
+  .pulseWaveActive,
+  .pulseCore,
+  .coreRing,
+  .particle,
+  .statusCard {
+    animation: none !important;
   }
 }
