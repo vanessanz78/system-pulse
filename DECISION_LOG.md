@@ -1,5 +1,24 @@
 # Decision Log
 
+## 2026-07-05 - Low compute architecture standard
+
+System Pulse now follows Engineering Standard 001: a deployed app with zero active users should consume close to zero compute.
+
+Decisions:
+
+- The desktop app shell may start, but the main window now starts hidden.
+- System Pulse must not collect a local system snapshot on app launch.
+- The 60 second refresh loop may run only while the app window is visible and useful.
+- The refresh loop must stop when the window is hidden, blurred, or unloaded.
+- The website remains static: no analytics, AI, realtime services, dashboards, or admin bundles on the landing page.
+- Future features must follow `docs/Engineering-Standards/001-Low-Compute-Architecture.md`.
+
+Implementation and audit:
+
+- `docs/40-Low-Compute-Audit-And-Reduction.md`
+- `app/desktop/src/main.ts`
+- `app/desktop/src-tauri/tauri.conf.json`
+
 ## 2026-07-02 - Data clarity visual pass
 
 Vanessa approved the current Candle Pulse-style visual direction and asked for the next refinement to match the attached Today view reference:

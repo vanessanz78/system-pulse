@@ -62,7 +62,7 @@ if (!app) {
 }
 
 const appRoot = app;
-const AUTO_REFRESH_MS = 60_000;
+const VISIBLE_REFRESH_MS = 60_000;
 let currentPulse: TodayPulse | null = null;
 let isRefreshing = false;
 let currentView: ViewMode = "quick";
@@ -867,7 +867,7 @@ async function loadToday(options: { keepExisting?: boolean; quiet?: boolean } = 
     await updateTray(pulse);
   } catch (error) {
     if (options.quiet && currentPulse) {
-      careMessage = "The last live check missed. System Pulse will try again shortly.";
+      careMessage = "The last live check missed. System Pulse will try again when reopened or refreshed.";
       renderCurrentView(currentPulse);
     } else {
       renderError(error instanceof Error ? error.message : String(error));
@@ -881,31 +881,56 @@ function startAutoRefresh(): void {
   if (autoRefreshTimer !== undefined) return;
   autoRefreshTimer = window.setInterval(() => {
     void loadToday({ keepExisting: true, quiet: true });
-  }, AUTO_REFRESH_MS);
+  }, VISIBLE_REFRESH_MS);
+}
+
+function stopAutoRefresh(): void {
+  if (autoRefreshTimer === undefined) return;
+  window.clearInterval(autoRefreshTimer);
+  autoRefreshTimer = undefined;
+}
+
+function refreshVisibleView(): void {
+  startAutoRefresh();
+  void loadToday({ keepExisting: Boolean(currentPulse), quiet: Boolean(currentPulse) });
 }
 
 void listen("system-pulse-refresh", () => {
+  startAutoRefresh();
   void loadToday({ keepExisting: true });
 });
 void listen("system-pulse-show-quick-checkin", () => {
   currentView = "quick";
   if (currentPulse) {
     renderQuickCheckin(currentPulse);
+    startAutoRefresh();
+    void loadToday({ keepExisting: true, quiet: true });
+    return;
   }
+  refreshVisibleView();
 });
 void listen("system-pulse-show-today", () => {
   currentView = "today";
   if (currentPulse) {
     renderToday(currentPulse);
+    startAutoRefresh();
+    void loadToday({ keepExisting: true, quiet: true });
+    return;
   }
+  refreshVisibleView();
 });
 window.addEventListener("focus", () => {
-  void loadToday({ keepExisting: true, quiet: true });
-});
-document.addEventListener("visibilitychange", () => {
   if (!document.hidden) {
-    void loadToday({ keepExisting: true, quiet: true });
+    refreshVisibleView();
   }
 });
-startAutoRefresh();
-void loadToday();
+window.addEventListener("blur", stopAutoRefresh);
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    stopAutoRefresh();
+    return;
+  }
+
+  refreshVisibleView();
+});
+window.addEventListener("beforeunload", stopAutoRefresh);
