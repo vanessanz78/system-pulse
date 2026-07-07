@@ -4,6 +4,14 @@ System Pulse is a cross-platform desktop software project in founding-engineerin
 
 The repository is the long-term home for a production-quality application that will eventually support macOS, Windows, and Linux from a shared architecture. The current macOS UAT app is a Tauri desktop build with real local system data.
 
+## Codex Startup And Governance
+
+Every Codex session for this repository must begin by reading `START_HERE.md` from the central [Codex Operating System](https://github.com/vanessanz78/codex-operating-system) repository before reading or changing project files.
+
+Use the project-level [START_HERE.md](START_HERE.md) as a lightweight redirect only. The central Operating System governs document reading order, branch governance, engineering standards, architecture principles, milestone workflow, build verification, UAT requirements, cleanup procedures, and handoff requirements.
+
+Do not duplicate Operating System documentation in this repository. Keep this repository focused on System Pulse product, architecture, implementation, and release knowledge.
+
 ## Vision
 
 Keep your computer performing like the day you bought it.
@@ -42,6 +50,7 @@ Durable handoff notes:
 
 ```text
 system-pulse/
+├── START_HERE.md
 ├── README.md
 ├── docs/
 ├── design/

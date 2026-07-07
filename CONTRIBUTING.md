@@ -4,6 +4,14 @@ System Pulse is in foundation setup.
 
 No application features, user interface, platform implementation, build system, or runtime code should be added until the relevant product and architecture decisions are approved.
 
+## Codex Operating System
+
+This repository is governed by the central [Codex Operating System](https://github.com/vanessanz78/codex-operating-system).
+
+Before contributing with Codex, read the central Operating System `START_HERE.md` first, then follow its instructions for document reading order, branch governance, engineering standards, architecture principles, milestone workflow, build verification, UAT, cleanup, and handoff.
+
+Do not copy the Operating System into this repository. If a workflow rule belongs to every Vanessa project, update the central Operating System instead. This repository should keep only System Pulse-specific product, architecture, implementation, and release guidance.
+
 ## Contribution Scope
 
 Current acceptable contributions:

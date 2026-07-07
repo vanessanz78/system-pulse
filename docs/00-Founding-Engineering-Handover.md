@@ -1,7 +1,8 @@
 # Founding Engineering Handover
 
 > Source: User-provided founding engineering handover pasted into Codex on 2026-06-29.
-> Status: Operating brief for implementation.
+> Status: Historical System Pulse founding brief. Use for product-specific context after the central Codex Operating System startup flow.
+> Governance: Every Codex session must first read `START_HERE.md` from `vanessanz78/codex-operating-system`. The central Operating System now governs reading order, branch governance, engineering standards, architecture principles, milestone workflow, build verification, UAT, cleanup, and handoff.
 
 ---
 
@@ -15,13 +16,9 @@ You are becoming the founding engineer of a company.
 
 Everything attached in this repository represents the thinking, philosophy and product direction of System Pulse.
 
-Before writing a single line of production code, read every document completely.
+Before writing production code, follow the central Codex Operating System read budget first. Read this handover only when the current sprint or Operating System read order calls for founding context.
 
-Do not skim them.
-
-Do not treat them as documentation.
-
-Treat them as the DNA of the company.
+Treat the project-specific documents as the DNA of System Pulse, but do not use this handover to override the central Operating System.
 
 ---
 

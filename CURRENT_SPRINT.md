@@ -8,7 +8,11 @@ Status: Active
 
 ## Source Priority
 
-Read this file before the Product Bible, README, or any older process document when deciding what to change next.
+Before reading this file or doing any project work, read `START_HERE.md` from the central `vanessanz78/codex-operating-system` repository and follow the Operating System startup flow.
+
+The central Operating System governs document reading order, branch governance, engineering standards, architecture principles, milestone workflow, build verification, UAT requirements, cleanup procedures, and handoff requirements.
+
+After the Operating System directs you into the project sprint read, read this file before the Product Bible, README, or any older process document when deciding what to change next.
 
 Then read `docs/37-Feeling-Bible.md`.
 
