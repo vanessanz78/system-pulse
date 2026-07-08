@@ -1,5 +1,8 @@
 use crate::models::{
-    ApplicationImpact, BrowserSnapshot, DomainHealth, HealthState, SystemSnapshot, TodayPulse,
+    ApplicationImpact, BrowserSnapshot, DomainHealth, FocusContributor, FocusDomain,
+    FocusPrediction, FocusState, HealthState, MenuBarState, PredictionStaleness,
+    RecoveryCandidate, SafetyLevel, SessionPreservationRisk, StalenessStatus, SupportingMetric,
+    SystemSnapshot, TodayPulse,
 };
 
 pub fn evaluate(snapshot: SystemSnapshot) -> TodayPulse {
@@ -51,6 +54,33 @@ pub fn evaluate(snapshot: SystemSnapshot) -> TodayPulse {
         renderer_score,
         window_server_score,
     );
+    let focus_prediction = focus_prediction(
+        &snapshot,
+        flow.minutes,
+        system_score,
+        cpu_score,
+        memory_score,
+        storage_score,
+        disk_score,
+        application_score,
+        browser_score,
+        renderer_score,
+        window_server_score,
+        &memory_health,
+        &storage_health,
+        &processor_health,
+        &browser_health,
+        &application_health,
+        &top_applications,
+    );
+    let recovery_candidates = recovery_candidates(
+        &snapshot,
+        &recommendation,
+        &top_applications,
+        &storage_health,
+        browser_score.min(renderer_score),
+        storage_score,
+    );
 
     TodayPulse {
         collected_at: snapshot.collected_at,
@@ -68,7 +98,26 @@ pub fn evaluate(snapshot: SystemSnapshot) -> TodayPulse {
         browser_health,
         application_health,
         top_applications,
+        focus_prediction,
+        recovery_candidates,
     }
+}
+
+pub fn sync_focus_contracts(pulse: &mut TodayPulse) {
+    pulse.focus_prediction.remaining_minutes = pulse.flow_remaining_minutes;
+    pulse.focus_prediction.state = focus_state_for_minutes(pulse.flow_remaining_minutes);
+    pulse.focus_prediction.menu_bar_state = menu_bar_state_for_minutes(pulse.flow_remaining_minutes);
+    pulse.focus_prediction.primary_reducer = pulse
+        .focus_prediction
+        .contributors
+        .iter()
+        .filter(|contributor| contributor.risk >= 0.20)
+        .max_by(|left, right| {
+            left.risk
+                .partial_cmp(&right.risk)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+        .cloned();
 }
 
 struct Recommendation {
@@ -80,6 +129,328 @@ struct Recommendation {
 struct FlowEstimate {
     label: String,
     minutes: u32,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn focus_prediction(
+    snapshot: &SystemSnapshot,
+    remaining_minutes: u32,
+    system_score: u8,
+    cpu_score: u8,
+    memory_score: u8,
+    storage_score: u8,
+    disk_score: u8,
+    application_score: u8,
+    browser_score: u8,
+    renderer_score: u8,
+    window_server_score: u8,
+    memory_health: &DomainHealth,
+    storage_health: &DomainHealth,
+    processor_health: &DomainHealth,
+    browser_health: &DomainHealth,
+    application_health: &DomainHealth,
+    top_applications: &[ApplicationImpact],
+) -> FocusPrediction {
+    let browser_pressure_score = browser_score.min(renderer_score);
+    let processor_pressure_score = cpu_score.min(window_server_score);
+    let application_action_available = top_applications
+        .iter()
+        .any(|application| application.show_opportunity && application.action_kind != "none");
+    let protected_work = top_applications.iter().any(|application| application.protected_work);
+
+    let contributors = vec![
+        focus_contributor(
+            FocusDomain::Memory,
+            "Memory",
+            memory_score,
+            memory_health,
+            protected_work,
+            browser_pressure_score < 70,
+        ),
+        focus_contributor(
+            FocusDomain::Processor,
+            "Processor",
+            processor_pressure_score,
+            processor_health,
+            protected_work,
+            false,
+        ),
+        focus_contributor(
+            FocusDomain::Browser,
+            "Browser",
+            browser_pressure_score,
+            browser_health,
+            false,
+            primary_browser(snapshot).is_some() && browser_pressure_score < 70,
+        ),
+        focus_contributor(
+            FocusDomain::Applications,
+            "Applications",
+            application_score,
+            application_health,
+            protected_work,
+            application_action_available,
+        ),
+        focus_contributor(
+            FocusDomain::Storage,
+            "Storage",
+            storage_score.min(disk_score),
+            storage_health,
+            false,
+            storage_score < 58,
+        ),
+    ];
+    let primary_reducer = contributors
+        .iter()
+        .filter(|contributor| contributor.risk >= 0.20)
+        .max_by(|left, right| {
+            left.risk
+                .partial_cmp(&right.risk)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+        .cloned();
+    let confidence = prediction_confidence(&[
+        system_score,
+        cpu_score,
+        memory_score,
+        storage_score,
+        disk_score,
+        application_score,
+        browser_score,
+        renderer_score,
+        window_server_score,
+    ]);
+
+    FocusPrediction {
+        remaining_minutes,
+        state: focus_state_for_minutes(remaining_minutes),
+        confidence,
+        primary_reducer,
+        contributors,
+        last_updated: snapshot.collected_at.clone(),
+        staleness: PredictionStaleness {
+            status: StalenessStatus::Fresh,
+            age_seconds: 0,
+        },
+        menu_bar_state: menu_bar_state_for_minutes(remaining_minutes),
+    }
+}
+
+fn focus_contributor(
+    domain: FocusDomain,
+    label: &str,
+    score: u8,
+    health: &DomainHealth,
+    protected_work: bool,
+    action_available: bool,
+) -> FocusContributor {
+    let risk = (1.0 - (score as f32 / 100.0)).clamp(0.0, 1.0);
+    FocusContributor {
+        domain,
+        label: label.to_string(),
+        state: focus_state_for_score(score),
+        risk,
+        impact_minutes: (risk * 60.0).round() as i32,
+        reason: health.detail.clone(),
+        supporting_metrics: supporting_metrics(health),
+        protected_work,
+        action_available,
+    }
+}
+
+fn supporting_metrics(health: &DomainHealth) -> Vec<SupportingMetric> {
+    let mut metrics = Vec::new();
+    if !health.metric_label.is_empty() {
+        metrics.push(SupportingMetric {
+            label: "Current signal".to_string(),
+            value: health.metric_label.clone(),
+        });
+    }
+    if !health.metric_percent.is_empty() {
+        metrics.push(SupportingMetric {
+            label: "Relative load".to_string(),
+            value: health.metric_percent.clone(),
+        });
+    }
+    metrics
+}
+
+fn recovery_candidates(
+    snapshot: &SystemSnapshot,
+    recommendation: &Recommendation,
+    top_applications: &[ApplicationImpact],
+    storage_health: &DomainHealth,
+    browser_pressure_score: u8,
+    storage_score: u8,
+) -> Vec<RecoveryCandidate> {
+    let mut candidates = Vec::new();
+
+    if let Some(application) = top_applications
+        .iter()
+        .find(|application| application.show_opportunity && application.action_kind != "none")
+    {
+        candidates.push(RecoveryCandidate {
+            domain: FocusDomain::Applications,
+            action_kind: application.action_kind.clone(),
+            target: application.action_target.clone(),
+            expected_gain_minutes: parse_minutes(&application.care_estimated_improvement),
+            estimated_interruption_seconds: if application.action_kind == "restartFinder" {
+                5
+            } else {
+                20
+            },
+            confidence: 0.55,
+            safety_level: SafetyLevel::Caution,
+            requires_confirmation: true,
+            can_automate: true,
+            session_preservation_risk: SessionPreservationRisk::Medium,
+            reason: application.care_detail.clone(),
+            trust_notes:
+                "Only known safe application actions are exposed; protected active work stays blocked."
+                    .to_string(),
+        });
+    }
+
+    if browser_pressure_score < 70 {
+        if let Some(browser) = primary_browser(snapshot) {
+            candidates.push(RecoveryCandidate {
+                domain: FocusDomain::Browser,
+                action_kind: if browser.name == "Safari" {
+                    "quitApp".to_string()
+                } else {
+                    "restartApp".to_string()
+                },
+                target: browser.name.clone(),
+                expected_gain_minutes: 35,
+                estimated_interruption_seconds: if browser.name == "Safari" { 10 } else { 20 },
+                confidence: 0.58,
+                safety_level: SafetyLevel::Caution,
+                requires_confirmation: true,
+                can_automate: true,
+                session_preservation_risk: SessionPreservationRisk::Medium,
+                reason: browser_recommendation_explanation(browser),
+                trust_notes:
+                    "Browser session restoration is likely but not guaranteed; confirmation remains required."
+                        .to_string(),
+            });
+        }
+    }
+
+    if storage_score < 58 {
+        candidates.push(RecoveryCandidate {
+            domain: FocusDomain::Storage,
+            action_kind: "openStorageSettings".to_string(),
+            target: "Storage Settings".to_string(),
+            expected_gain_minutes: 15,
+            estimated_interruption_seconds: 180,
+            confidence: 0.45,
+            safety_level: SafetyLevel::Safe,
+            requires_confirmation: false,
+            can_automate: true,
+            session_preservation_risk: SessionPreservationRisk::None,
+            reason: storage_health.detail.clone(),
+            trust_notes: "Opening Settings is non-destructive; cleanup remains a user decision.".to_string(),
+        });
+    }
+
+    candidates.push(RecoveryCandidate {
+        domain: FocusDomain::System,
+        action_kind: "wait".to_string(),
+        target: String::new(),
+        expected_gain_minutes: parse_minutes(&recommendation.estimated_additional_work_label),
+        estimated_interruption_seconds: 0,
+        confidence: 0.50,
+        safety_level: SafetyLevel::Safe,
+        requires_confirmation: false,
+        can_automate: false,
+        session_preservation_risk: SessionPreservationRisk::None,
+        reason: recommendation.explanation.clone(),
+        trust_notes:
+            "Guidance-only candidate preserves flow when no safe one-click action is appropriate."
+                .to_string(),
+    });
+
+    candidates.sort_by(|left, right| {
+        recovery_rank(right)
+            .partial_cmp(&recovery_rank(left))
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    candidates
+}
+
+fn recovery_rank(candidate: &RecoveryCandidate) -> f32 {
+    let safety_penalty = match candidate.safety_level {
+        SafetyLevel::Safe => 0.0,
+        SafetyLevel::Caution => 4.0,
+        SafetyLevel::Restricted => 12.0,
+        SafetyLevel::Blocked => 100.0,
+    };
+    let interruption_penalty = candidate.estimated_interruption_seconds as f32 / 30.0;
+    (candidate.expected_gain_minutes as f32 * candidate.confidence)
+        - interruption_penalty
+        - safety_penalty
+}
+
+fn prediction_confidence(scores: &[u8]) -> f32 {
+    let weakest = scores.iter().min().copied().unwrap_or(50);
+    let strongest = scores.iter().max().copied().unwrap_or(50);
+    let spread = strongest.saturating_sub(weakest);
+    (0.55 + (weakest as f32 / 100.0 * 0.22) - (spread as f32 / 100.0 * 0.12))
+        .clamp(0.35, 0.78)
+}
+
+fn focus_state_for_score(score: u8) -> FocusState {
+    if score >= 58 {
+        FocusState::Green
+    } else if score >= 40 {
+        FocusState::Yellow
+    } else if score >= 30 {
+        FocusState::Orange
+    } else {
+        FocusState::Red
+    }
+}
+
+fn focus_state_for_minutes(minutes: u32) -> FocusState {
+    if minutes >= 61 {
+        FocusState::Green
+    } else if minutes >= 31 {
+        FocusState::Yellow
+    } else if minutes >= 15 {
+        FocusState::Orange
+    } else {
+        FocusState::Red
+    }
+}
+
+fn menu_bar_state_for_minutes(minutes: u32) -> MenuBarState {
+    let state = focus_state_for_minutes(minutes);
+    let (heart_color, shows_minutes, critical_pulse) = match state {
+        FocusState::Green => ("green", false, false),
+        FocusState::Yellow => ("yellow", true, false),
+        FocusState::Orange => ("orange", true, false),
+        FocusState::Red => ("red", true, true),
+    };
+
+    MenuBarState {
+        state,
+        heart_color: heart_color.to_string(),
+        minutes_label: if shows_minutes {
+            format_flow_remaining(minutes)
+        } else {
+            String::new()
+        },
+        shows_minutes,
+        critical_pulse,
+    }
+}
+
+fn parse_minutes(label: &str) -> i32 {
+    let digits = label
+        .chars()
+        .filter(|character| character.is_ascii_digit())
+        .collect::<String>();
+    digits.parse::<i32>().unwrap_or(0)
 }
 
 fn weighted_score(

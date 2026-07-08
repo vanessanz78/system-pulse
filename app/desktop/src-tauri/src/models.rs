@@ -103,9 +103,11 @@ pub struct TodayPulse {
     pub browser_health: DomainHealth,
     pub application_health: DomainHealth,
     pub top_applications: Vec<ApplicationImpact>,
+    pub focus_prediction: FocusPrediction,
+    pub recovery_candidates: Vec<RecoveryCandidate>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum HealthState {
     Healthy,
@@ -113,7 +115,7 @@ pub enum HealthState {
     Critical,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DomainHealth {
     pub label: String,
@@ -124,7 +126,7 @@ pub struct DomainHealth {
     pub metric_percent: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ApplicationImpact {
     pub name: String,
@@ -140,4 +142,137 @@ pub struct ApplicationImpact {
     pub action_label: String,
     pub show_opportunity: bool,
     pub protected_work: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FocusPrediction {
+    pub remaining_minutes: u32,
+    pub state: FocusState,
+    pub confidence: f32,
+    pub primary_reducer: Option<FocusContributor>,
+    pub contributors: Vec<FocusContributor>,
+    pub last_updated: String,
+    pub staleness: PredictionStaleness,
+    pub menu_bar_state: MenuBarState,
+}
+
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FocusState {
+    Green,
+    Yellow,
+    Orange,
+    Red,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FocusContributor {
+    pub domain: FocusDomain,
+    pub label: String,
+    pub state: FocusState,
+    pub risk: f32,
+    pub impact_minutes: i32,
+    pub reason: String,
+    pub supporting_metrics: Vec<SupportingMetric>,
+    pub protected_work: bool,
+    pub action_available: bool,
+}
+
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FocusDomain {
+    Applications,
+    Memory,
+    Processor,
+    Browser,
+    Storage,
+    Disk,
+    Desktop,
+    System,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SupportingMetric {
+    pub label: String,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PredictionStaleness {
+    pub status: StalenessStatus,
+    pub age_seconds: u32,
+}
+
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum StalenessStatus {
+    Fresh,
+    Stale,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecoveryCandidate {
+    pub domain: FocusDomain,
+    pub action_kind: String,
+    pub target: String,
+    pub expected_gain_minutes: i32,
+    pub estimated_interruption_seconds: u32,
+    pub confidence: f32,
+    pub safety_level: SafetyLevel,
+    pub requires_confirmation: bool,
+    pub can_automate: bool,
+    pub session_preservation_risk: SessionPreservationRisk,
+    pub reason: String,
+    pub trust_notes: String,
+}
+
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SafetyLevel {
+    Safe,
+    Caution,
+    Restricted,
+    Blocked,
+}
+
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SessionPreservationRisk {
+    None,
+    Low,
+    Medium,
+    High,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MenuBarState {
+    pub state: FocusState,
+    pub heart_color: String,
+    pub minutes_label: String,
+    pub shows_minutes: bool,
+    pub critical_pulse: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActionResult {
+    pub action_kind: String,
+    pub target: String,
+    pub started_at: String,
+    pub completed_at: Option<String>,
+    pub success: bool,
+    pub interruption_seconds: u32,
+    pub before_prediction: Option<FocusPrediction>,
+    pub after_prediction: Option<FocusPrediction>,
+    pub actual_gain_minutes: Option<i32>,
+    pub errors: Vec<String>,
+    pub user_cancelled: bool,
 }

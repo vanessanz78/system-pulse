@@ -22,6 +22,7 @@ fn get_today_pulse() -> Result<TodayPulse, String> {
     })?;
     let mut pulse = pulse_core::evaluate(snapshot.clone());
     flow_truth::apply(&snapshot, &mut pulse);
+    pulse_core::sync_focus_contracts(&mut pulse);
     Ok(pulse)
 }
 

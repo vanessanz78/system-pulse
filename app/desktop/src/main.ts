@@ -4,6 +4,19 @@ import "./styles.css";
 
 type HealthState = "healthy" | "attention" | "critical";
 type ViewMode = "quick" | "today";
+type FocusState = "green" | "yellow" | "orange" | "red";
+type FocusDomain =
+  | "applications"
+  | "memory"
+  | "processor"
+  | "browser"
+  | "storage"
+  | "disk"
+  | "desktop"
+  | "system";
+type StalenessStatus = "fresh" | "stale" | "unknown";
+type SafetyLevel = "safe" | "caution" | "restricted" | "blocked";
+type SessionPreservationRisk = "none" | "low" | "medium" | "high" | "unknown";
 
 type DomainHealth = {
   label: string;
@@ -30,6 +43,76 @@ type ApplicationImpact = {
   protectedWork: boolean;
 };
 
+type SupportingMetric = {
+  label: string;
+  value: string;
+};
+
+type PredictionStaleness = {
+  status: StalenessStatus;
+  ageSeconds: number;
+};
+
+type MenuBarState = {
+  state: FocusState;
+  heartColor: string;
+  minutesLabel: string;
+  showsMinutes: boolean;
+  criticalPulse: boolean;
+};
+
+type FocusContributor = {
+  domain: FocusDomain;
+  label: string;
+  state: FocusState;
+  risk: number;
+  impactMinutes: number;
+  reason: string;
+  supportingMetrics: SupportingMetric[];
+  protectedWork: boolean;
+  actionAvailable: boolean;
+};
+
+type FocusPrediction = {
+  remainingMinutes: number;
+  state: FocusState;
+  confidence: number;
+  primaryReducer: FocusContributor | null;
+  contributors: FocusContributor[];
+  lastUpdated: string;
+  staleness: PredictionStaleness;
+  menuBarState: MenuBarState;
+};
+
+type RecoveryCandidate = {
+  domain: FocusDomain;
+  actionKind: string;
+  target: string;
+  expectedGainMinutes: number;
+  estimatedInterruptionSeconds: number;
+  confidence: number;
+  safetyLevel: SafetyLevel;
+  requiresConfirmation: boolean;
+  canAutomate: boolean;
+  sessionPreservationRisk: SessionPreservationRisk;
+  reason: string;
+  trustNotes: string;
+};
+
+type ActionResult = {
+  actionKind: string;
+  target: string;
+  startedAt: string;
+  completedAt: string | null;
+  success: boolean;
+  interruptionSeconds: number;
+  beforePrediction: FocusPrediction | null;
+  afterPrediction: FocusPrediction | null;
+  actualGainMinutes: number | null;
+  errors: string[];
+  userCancelled: boolean;
+};
+
 type TodayPulse = {
   collectedAt: string;
   platform: string;
@@ -47,6 +130,8 @@ type TodayPulse = {
   batteryHealth?: DomainHealth;
   browserHealth?: DomainHealth;
   topApplications: ApplicationImpact[];
+  focusPrediction: FocusPrediction;
+  recoveryCandidates: RecoveryCandidate[];
 };
 
 type KnowledgeItem = {
