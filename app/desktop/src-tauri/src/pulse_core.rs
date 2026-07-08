@@ -43,20 +43,8 @@ pub fn evaluate(snapshot: SystemSnapshot) -> TodayPulse {
         window_server_score,
         system_score,
     );
-    let flow = flow_remaining_estimate(
-        system_score,
-        cpu_score,
-        memory_score,
-        storage_score,
-        disk_score,
-        application_score,
-        browser_score,
-        renderer_score,
-        window_server_score,
-    );
     let focus_prediction = focus_prediction(
         &snapshot,
-        flow.minutes,
         system_score,
         cpu_score,
         memory_score,
@@ -90,8 +78,8 @@ pub fn evaluate(snapshot: SystemSnapshot) -> TodayPulse {
         primary_explanation: recommendation.explanation,
         primary_recommendation: recommendation.text,
         estimated_additional_work_label: recommendation.estimated_additional_work_label,
-        flow_remaining_label: flow.label,
-        flow_remaining_minutes: flow.minutes,
+        flow_remaining_label: format_flow_remaining(focus_prediction.remaining_minutes),
+        flow_remaining_minutes: focus_prediction.remaining_minutes,
         memory_health,
         storage_health,
         processor_health,
@@ -104,9 +92,11 @@ pub fn evaluate(snapshot: SystemSnapshot) -> TodayPulse {
 }
 
 pub fn sync_focus_contracts(pulse: &mut TodayPulse) {
-    pulse.focus_prediction.remaining_minutes = pulse.flow_remaining_minutes;
-    pulse.focus_prediction.state = focus_state_for_minutes(pulse.flow_remaining_minutes);
-    pulse.focus_prediction.menu_bar_state = menu_bar_state_for_minutes(pulse.flow_remaining_minutes);
+    pulse.flow_remaining_minutes = pulse.focus_prediction.remaining_minutes;
+    pulse.flow_remaining_label = format_flow_remaining(pulse.focus_prediction.remaining_minutes);
+    pulse.focus_prediction.state = focus_state_for_minutes(pulse.focus_prediction.remaining_minutes);
+    pulse.focus_prediction.menu_bar_state =
+        menu_bar_state_for_minutes(pulse.focus_prediction.remaining_minutes);
     pulse.focus_prediction.primary_reducer = pulse
         .focus_prediction
         .contributors
@@ -120,21 +110,36 @@ pub fn sync_focus_contracts(pulse: &mut TodayPulse) {
         .cloned();
 }
 
+pub fn cap_focus_prediction(pulse: &mut TodayPulse, cap_minutes: u32) {
+    if pulse.focus_prediction.remaining_minutes > cap_minutes {
+        pulse.focus_prediction.remaining_minutes = cap_minutes;
+    }
+    sync_focus_contracts(pulse);
+}
+
 struct Recommendation {
     text: String,
     explanation: String,
     estimated_additional_work_label: String,
 }
 
-struct FlowEstimate {
-    label: String,
-    minutes: u32,
+struct FocusSignal {
+    domain: FocusDomain,
+    label: &'static str,
+    score: u8,
+    risk: f32,
+    weight: f32,
+    reason: String,
+    supporting_metrics: Vec<SupportingMetric>,
+    protected_work: bool,
+    action_available: bool,
+    weak_cap_minutes: Option<u32>,
+    stability_penalty: f32,
 }
 
 #[allow(clippy::too_many_arguments)]
 fn focus_prediction(
     snapshot: &SystemSnapshot,
-    remaining_minutes: u32,
     system_score: u8,
     cpu_score: u8,
     memory_score: u8,
@@ -151,55 +156,44 @@ fn focus_prediction(
     application_health: &DomainHealth,
     top_applications: &[ApplicationImpact],
 ) -> FocusPrediction {
-    let browser_pressure_score = browser_score.min(renderer_score);
-    let processor_pressure_score = cpu_score.min(window_server_score);
-    let application_action_available = top_applications
+    let signals = focus_signals(
+        snapshot,
+        cpu_score,
+        memory_score,
+        storage_score,
+        disk_score,
+        application_score,
+        browser_score,
+        renderer_score,
+        window_server_score,
+        memory_health,
+        storage_health,
+        processor_health,
+        browser_health,
+        application_health,
+        top_applications,
+    );
+    let sustained_pressure = sustained_pressure_penalty(snapshot, &signals);
+    let rising_pressure = rising_pressure_penalty(&signals);
+    let volatility = volatility_penalty(&signals);
+    let weighted_risk = signals
         .iter()
-        .any(|application| application.show_opportunity && application.action_kind != "none");
-    let protected_work = top_applications.iter().any(|application| application.protected_work);
+        .map(|signal| signal.risk * signal.weight)
+        .sum::<f32>()
+        .clamp(0.0, 1.0);
+    let prediction_risk =
+        (weighted_risk + sustained_pressure + rising_pressure + volatility).clamp(0.0, 1.0);
+    let mut remaining_minutes = (420.0 * (1.0 - prediction_risk).powf(2.2)).round() as u32;
+    remaining_minutes = remaining_minutes.clamp(8, 420);
+    if let Some(cap_minutes) = signals
+        .iter()
+        .filter_map(|signal| signal.weak_cap_minutes)
+        .min()
+    {
+        remaining_minutes = remaining_minutes.min(cap_minutes);
+    }
 
-    let contributors = vec![
-        focus_contributor(
-            FocusDomain::Memory,
-            "Memory",
-            memory_score,
-            memory_health,
-            protected_work,
-            browser_pressure_score < 70,
-        ),
-        focus_contributor(
-            FocusDomain::Processor,
-            "Processor",
-            processor_pressure_score,
-            processor_health,
-            protected_work,
-            false,
-        ),
-        focus_contributor(
-            FocusDomain::Browser,
-            "Browser",
-            browser_pressure_score,
-            browser_health,
-            false,
-            primary_browser(snapshot).is_some() && browser_pressure_score < 70,
-        ),
-        focus_contributor(
-            FocusDomain::Applications,
-            "Applications",
-            application_score,
-            application_health,
-            protected_work,
-            application_action_available,
-        ),
-        focus_contributor(
-            FocusDomain::Storage,
-            "Storage",
-            storage_score.min(disk_score),
-            storage_health,
-            false,
-            storage_score < 58,
-        ),
-    ];
+    let contributors = focus_contributors(&signals, prediction_risk);
     let primary_reducer = contributors
         .iter()
         .filter(|contributor| contributor.risk >= 0.20)
@@ -209,17 +203,22 @@ fn focus_prediction(
                 .unwrap_or(std::cmp::Ordering::Equal)
         })
         .cloned();
-    let confidence = prediction_confidence(&[
-        system_score,
-        cpu_score,
-        memory_score,
-        storage_score,
-        disk_score,
-        application_score,
-        browser_score,
-        renderer_score,
-        window_server_score,
-    ]);
+    let confidence = prediction_confidence(
+        &[
+            system_score,
+            cpu_score,
+            memory_score,
+            storage_score,
+            disk_score,
+            application_score,
+            browser_score,
+            renderer_score,
+            window_server_score,
+        ],
+        &signals,
+        sustained_pressure + rising_pressure,
+        volatility,
+    );
 
     FocusPrediction {
         remaining_minutes,
@@ -236,25 +235,318 @@ fn focus_prediction(
     }
 }
 
-fn focus_contributor(
-    domain: FocusDomain,
-    label: &str,
-    score: u8,
-    health: &DomainHealth,
-    protected_work: bool,
-    action_available: bool,
-) -> FocusContributor {
-    let risk = (1.0 - (score as f32 / 100.0)).clamp(0.0, 1.0);
-    FocusContributor {
-        domain,
-        label: label.to_string(),
-        state: focus_state_for_score(score),
-        risk,
-        impact_minutes: (risk * 60.0).round() as i32,
-        reason: health.detail.clone(),
-        supporting_metrics: supporting_metrics(health),
-        protected_work,
-        action_available,
+#[allow(clippy::too_many_arguments)]
+fn focus_signals(
+    snapshot: &SystemSnapshot,
+    cpu_score: u8,
+    memory_score: u8,
+    storage_score: u8,
+    disk_score: u8,
+    application_score: u8,
+    browser_score: u8,
+    renderer_score: u8,
+    window_server_score: u8,
+    memory_health: &DomainHealth,
+    storage_health: &DomainHealth,
+    processor_health: &DomainHealth,
+    browser_health: &DomainHealth,
+    application_health: &DomainHealth,
+    top_applications: &[ApplicationImpact],
+) -> Vec<FocusSignal> {
+    let browser_pressure_score = browser_score.min(renderer_score);
+    let protected_work = top_applications.iter().any(|application| application.protected_work);
+    let application_action_available = top_applications
+        .iter()
+        .any(|application| application.show_opportunity && application.action_kind != "none");
+    let available_ratio = ratio(snapshot.memory.available_bytes, snapshot.memory.total_bytes);
+    let swap_ratio = ratio(snapshot.memory.swap_used_bytes, snapshot.memory.total_bytes);
+    let renderer_ratio = ratio(
+        snapshot.renderers.total_memory_bytes,
+        snapshot.memory.total_bytes,
+    );
+    let window_server_ratio = snapshot
+        .window_server
+        .as_ref()
+        .map(|window_server| ratio(window_server.memory_bytes, snapshot.memory.total_bytes))
+        .unwrap_or_default();
+
+    vec![
+        FocusSignal {
+            domain: FocusDomain::Memory,
+            label: "Memory",
+            score: memory_score,
+            risk: score_risk(memory_score)
+                .max(ratio_risk(1.0 - available_ratio, 0.88, 0.98))
+                .max(ratio_risk(swap_ratio, 0.05, 0.50)),
+            weight: 0.25,
+            reason: memory_health.detail.clone(),
+            supporting_metrics: supporting_metrics(memory_health),
+            protected_work,
+            action_available: browser_pressure_score < 70,
+            weak_cap_minutes: weak_cap_for_score(memory_score),
+            stability_penalty: if swap_ratio >= 0.15 { 0.03 } else { 0.0 },
+        },
+        FocusSignal {
+            domain: FocusDomain::Browser,
+            label: "Browser",
+            score: browser_pressure_score,
+            risk: score_risk(browser_pressure_score)
+                .max(browser_renderer_risk(snapshot))
+                .max(ratio_risk(renderer_ratio, 0.14, 0.45)),
+            weight: 0.20,
+            reason: browser_health.detail.clone(),
+            supporting_metrics: supporting_metrics(browser_health),
+            protected_work: false,
+            action_available: primary_browser(snapshot).is_some() && browser_pressure_score < 70,
+            weak_cap_minutes: weak_cap_for_score(browser_pressure_score),
+            stability_penalty: browser_stability_penalty(snapshot),
+        },
+        FocusSignal {
+            domain: FocusDomain::Processor,
+            label: "Processor",
+            score: cpu_score,
+            risk: score_risk(cpu_score)
+                .max(ratio_risk((100.0 - snapshot.cpu.idle_percent) as f64, 65.0, 95.0)),
+            weight: 0.20,
+            reason: processor_health.detail.clone(),
+            supporting_metrics: supporting_metrics(processor_health),
+            protected_work,
+            action_available: false,
+            weak_cap_minutes: weak_cap_for_score(cpu_score),
+            stability_penalty: if snapshot.cpu.idle_percent < 20.0 { 0.02 } else { 0.0 },
+        },
+        FocusSignal {
+            domain: FocusDomain::Applications,
+            label: "Applications",
+            score: application_score,
+            risk: score_risk(application_score),
+            weight: 0.15,
+            reason: application_health.detail.clone(),
+            supporting_metrics: supporting_metrics(application_health),
+            protected_work,
+            action_available: application_action_available,
+            weak_cap_minutes: weak_cap_for_score(application_score),
+            stability_penalty: if protected_work { -0.02 } else { 0.0 },
+        },
+        FocusSignal {
+            domain: FocusDomain::Desktop,
+            label: "WindowServer activity",
+            score: window_server_score,
+            risk: score_risk(window_server_score)
+                .max(ratio_risk(window_server_ratio, 0.05, 0.15)),
+            weight: 0.08,
+            reason: window_server_reason(snapshot),
+            supporting_metrics: window_server_metrics(snapshot),
+            protected_work: false,
+            action_available: false,
+            weak_cap_minutes: weak_cap_for_score(window_server_score),
+            stability_penalty: if window_server_score < 70 { 0.02 } else { 0.0 },
+        },
+        FocusSignal {
+            domain: FocusDomain::Disk,
+            label: "Disk activity",
+            score: disk_score,
+            risk: score_risk(disk_score),
+            weight: 0.07,
+            reason: storage_health.detail.clone(),
+            supporting_metrics: vec![SupportingMetric {
+                label: "Disk activity".to_string(),
+                value: format_disk_activity(snapshot.disk_activity.megabytes_per_second),
+            }],
+            protected_work: false,
+            action_available: false,
+            weak_cap_minutes: weak_cap_for_score(disk_score),
+            stability_penalty: if disk_score < 70 { 0.03 } else { 0.0 },
+        },
+        FocusSignal {
+            domain: FocusDomain::Storage,
+            label: "Storage",
+            score: storage_score,
+            risk: score_risk(storage_score),
+            weight: 0.05,
+            reason: storage_health.detail.clone(),
+            supporting_metrics: supporting_metrics(storage_health),
+            protected_work: false,
+            action_available: storage_score < 58,
+            weak_cap_minutes: weak_cap_for_score(storage_score),
+            stability_penalty: 0.0,
+        },
+    ]
+}
+
+fn focus_contributors(signals: &[FocusSignal], prediction_risk: f32) -> Vec<FocusContributor> {
+    let baseline_minutes = (420.0 * (1.0 - prediction_risk).powf(2.2)).round();
+    let mut contributors = signals
+        .iter()
+        .map(|signal| {
+            let without_signal_risk =
+                (prediction_risk - (signal.risk * signal.weight)).clamp(0.0, 1.0);
+            let without_signal_minutes =
+                (420.0 * (1.0 - without_signal_risk).powf(2.2)).round();
+            FocusContributor {
+                domain: signal.domain,
+                label: signal.label.to_string(),
+                state: focus_state_for_score(signal.score),
+                risk: signal.risk,
+                impact_minutes: (without_signal_minutes - baseline_minutes).max(0.0) as i32,
+                reason: signal.reason.clone(),
+                supporting_metrics: signal.supporting_metrics.clone(),
+                protected_work: signal.protected_work,
+                action_available: signal.action_available && !signal.protected_work,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    contributors.sort_by(|left, right| {
+        right
+            .risk
+            .partial_cmp(&left.risk)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    contributors
+}
+
+fn score_risk(score: u8) -> f32 {
+    (1.0 - (score as f32 / 100.0)).clamp(0.0, 1.0)
+}
+
+fn ratio_risk(value: f64, low: f64, high: f64) -> f32 {
+    if high <= low {
+        return 0.0;
+    }
+    ((value - low) / (high - low)).clamp(0.0, 1.0) as f32
+}
+
+fn weak_cap_for_score(score: u8) -> Option<u32> {
+    if score <= 30 {
+        Some(14)
+    } else if score <= 42 {
+        Some(30)
+    } else if score <= 55 {
+        Some(60)
+    } else {
+        None
+    }
+}
+
+fn browser_renderer_risk(snapshot: &SystemSnapshot) -> f32 {
+    let Some(browser) = primary_browser(snapshot) else {
+        return 0.0;
+    };
+    let renderer_count_risk = ratio_risk(browser.renderer_count as f64, 24.0, 90.0);
+    let largest_renderer_risk = ratio_risk(
+        ratio(browser.largest_renderer_bytes, snapshot.memory.total_bytes),
+        0.08,
+        0.30,
+    );
+    renderer_count_risk.max(largest_renderer_risk)
+}
+
+fn browser_stability_penalty(snapshot: &SystemSnapshot) -> f32 {
+    let Some(browser) = primary_browser(snapshot) else {
+        return 0.0;
+    };
+    let long_session = browser
+        .uptime_seconds
+        .map(|seconds| seconds >= 8 * 60 * 60)
+        .unwrap_or(false);
+    if long_session && (browser.renderer_count >= 36 || browser.cpu_percent >= 35.0) {
+        0.04
+    } else if browser.renderer_count >= 52 {
+        0.03
+    } else {
+        0.0
+    }
+}
+
+fn sustained_pressure_penalty(snapshot: &SystemSnapshot, signals: &[FocusSignal]) -> f32 {
+    let signal_pressure = signals
+        .iter()
+        .map(|signal| signal.stability_penalty)
+        .sum::<f32>();
+    let concurrent_pressure = signals
+        .iter()
+        .filter(|signal| signal.risk >= 0.45)
+        .count();
+    let concurrent_penalty = if concurrent_pressure >= 3 {
+        0.05
+    } else if concurrent_pressure >= 2 {
+        0.03
+    } else {
+        0.0
+    };
+    let memory_browser_penalty = if score_risk(score_memory(snapshot)) >= 0.45
+        && score_risk(score_browser(snapshot).min(score_renderers(snapshot))) >= 0.45
+    {
+        0.03
+    } else {
+        0.0
+    };
+
+    (signal_pressure + concurrent_penalty + memory_browser_penalty).clamp(0.0, 0.16)
+}
+
+fn rising_pressure_penalty(signals: &[FocusSignal]) -> f32 {
+    let severe_count = signals.iter().filter(|signal| signal.risk >= 0.58).count();
+    let moderate_count = signals.iter().filter(|signal| signal.risk >= 0.36).count();
+
+    if severe_count >= 2 {
+        0.05
+    } else if severe_count == 1 && moderate_count >= 3 {
+        0.04
+    } else if moderate_count >= 4 {
+        0.03
+    } else {
+        0.0
+    }
+}
+
+fn volatility_penalty(signals: &[FocusSignal]) -> f32 {
+    let highest_risk = signals
+        .iter()
+        .map(|signal| signal.risk)
+        .fold(0.0_f32, f32::max);
+    let lowest_risk = signals
+        .iter()
+        .map(|signal| signal.risk)
+        .fold(1.0_f32, f32::min);
+    let spread = highest_risk - lowest_risk;
+
+    if spread >= 0.55 {
+        0.04
+    } else if spread >= 0.35 {
+        0.02
+    } else {
+        0.0
+    }
+}
+
+fn window_server_reason(snapshot: &SystemSnapshot) -> String {
+    if let Some(window_server) = &snapshot.window_server {
+        format!(
+            "Desktop responsiveness is using {} memory and {} CPU.",
+            format_bytes(window_server.memory_bytes),
+            format_cpu(window_server.cpu_percent)
+        )
+    } else {
+        "Desktop responsiveness was not reported in this check-in.".to_string()
+    }
+}
+
+fn window_server_metrics(snapshot: &SystemSnapshot) -> Vec<SupportingMetric> {
+    if let Some(window_server) = &snapshot.window_server {
+        vec![
+            SupportingMetric {
+                label: "Memory".to_string(),
+                value: format_bytes(window_server.memory_bytes),
+            },
+            SupportingMetric {
+                label: "CPU".to_string(),
+                value: format_cpu(window_server.cpu_percent),
+            },
+        ]
+    } else {
+        Vec::new()
     }
 }
 
@@ -391,12 +683,37 @@ fn recovery_rank(candidate: &RecoveryCandidate) -> f32 {
         - safety_penalty
 }
 
-fn prediction_confidence(scores: &[u8]) -> f32 {
+fn prediction_confidence(
+    scores: &[u8],
+    signals: &[FocusSignal],
+    pressure_penalty: f32,
+    volatility_penalty: f32,
+) -> f32 {
     let weakest = scores.iter().min().copied().unwrap_or(50);
     let strongest = scores.iter().max().copied().unwrap_or(50);
     let spread = strongest.saturating_sub(weakest);
-    (0.55 + (weakest as f32 / 100.0 * 0.22) - (spread as f32 / 100.0 * 0.12))
-        .clamp(0.35, 0.78)
+    let completeness = if signals.is_empty() { 0.0 } else { 1.0 };
+    let missing_window_server = signals.iter().any(|signal| {
+        signal.domain == FocusDomain::Desktop && signal.supporting_metrics.is_empty()
+    });
+    let completeness_penalty = if missing_window_server { 0.06 } else { 0.0 };
+    let conflict_penalty = if spread >= 55 {
+        0.10
+    } else if spread >= 35 {
+        0.06
+    } else {
+        0.02
+    };
+    let stability_score =
+        1.0 - (pressure_penalty + volatility_penalty + conflict_penalty).clamp(0.0, 0.45);
+    let base = 0.42
+        + (weakest as f32 / 100.0 * 0.18)
+        + (completeness * 0.12)
+        + (stability_score * 0.20)
+        - completeness_penalty;
+
+    // Until persisted history exists, confidence stays deliberately capped.
+    base.clamp(0.35, 0.85)
 }
 
 fn focus_state_for_score(score: u8) -> FocusState {
@@ -779,58 +1096,6 @@ fn primary_recommendation(
             explanation: "Storage does not need to interrupt this second. Smallest action: use a quiet moment to clear safe temporary files or old downloads. Expected interruption: a few minutes. Expected benefit: protects caches, updates, and app reliability.".to_string(),
             estimated_additional_work_label: "+15 minutes".to_string(),
         }
-    }
-}
-
-fn flow_remaining_estimate(
-    system_score: u8,
-    cpu_score: u8,
-    memory_score: u8,
-    storage_score: u8,
-    disk_score: u8,
-    application_score: u8,
-    browser_score: u8,
-    renderer_score: u8,
-    window_server_score: u8,
-) -> FlowEstimate {
-    let weakest_signal = [
-        cpu_score,
-        memory_score,
-        storage_score,
-        disk_score,
-        application_score,
-        browser_score,
-        renderer_score,
-        window_server_score,
-    ]
-    .into_iter()
-    .min()
-    .unwrap_or(system_score);
-
-    let reserve_drag = if memory_score < 45 || cpu_score < 45 || browser_score < 45 {
-        0.40
-    } else {
-        0.28
-    };
-    let blended_score =
-        (system_score as f64 * (1.0 - reserve_drag)) + (weakest_signal as f64 * reserve_drag);
-    let minutes = if blended_score >= 92.0 {
-        410
-    } else if blended_score >= 84.0 {
-        360
-    } else if blended_score >= 74.0 {
-        240
-    } else if blended_score >= 65.0 {
-        110
-    } else if blended_score >= 50.0 {
-        52
-    } else {
-        18
-    };
-
-    FlowEstimate {
-        label: format_flow_remaining(minutes),
-        minutes,
     }
 }
 

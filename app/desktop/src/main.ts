@@ -213,6 +213,19 @@ function shouldHideOpportunity(application: ApplicationImpact): boolean {
   return Boolean(state.remindUntil && state.remindUntil > Date.now());
 }
 
+function focusTimeLabel(pulse: TodayPulse): string {
+  const menuLabel = pulse.focusPrediction.menuBarState.minutesLabel;
+  if (menuLabel) return menuLabel;
+
+  const minutes = pulse.focusPrediction.remainingMinutes;
+  if (minutes >= 60) {
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    return `${hours}h ${remainingMinutes.toString().padStart(2, "0")}m`;
+  }
+  return `${minutes}m`;
+}
+
 function companionHeadline(state: HealthState): string {
   if (state === "critical") return "Care is needed soon.";
   return `${dayGreeting()}, ${USER_NAME}.`;
@@ -612,7 +625,7 @@ function todaySummary(pulse: TodayPulse): string {
 
           <section class="summary-time">
             <span>Estimated uninterrupted work time</span>
-            <strong>${escapeHtml(pulse.flowRemainingLabel)}</strong>
+            <strong>${escapeHtml(focusTimeLabel(pulse))}</strong>
             <p>${pulse.healthState === "critical" ? "A short care moment will help." : "Plenty of time for deep work."}</p>
           </section>
         </div>
@@ -687,7 +700,7 @@ function renderQuickCheckin(pulse: TodayPulse, _refreshing = false): void {
 
         <div class="companion-time">
           <span>You have</span>
-          <strong>${escapeHtml(pulse.flowRemainingLabel)}</strong>
+          <strong>${escapeHtml(focusTimeLabel(pulse))}</strong>
           <p>of uninterrupted work time</p>
         </div>
 
@@ -928,7 +941,7 @@ async function updateTray(pulse: TodayPulse): Promise<void> {
     await invoke("update_tray_score", {
       systemScore: pulse.systemScore,
       healthState: pulse.healthState,
-      flowRemainingLabel: pulse.flowRemainingLabel,
+      flowRemainingLabel: focusTimeLabel(pulse),
     });
   } catch {
     // Tray title updates are best-effort; the Today screen remains authoritative.

@@ -180,7 +180,7 @@ pub struct FocusContributor {
     pub action_available: bool,
 }
 
-#[derive(Debug, Clone, Copy, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum FocusDomain {
     Applications,

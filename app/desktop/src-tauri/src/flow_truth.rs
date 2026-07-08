@@ -1,4 +1,5 @@
 use crate::models::{ApplicationSnapshot, HealthState, SystemSnapshot, TodayPulse};
+use crate::pulse_core;
 
 const NOTICEABLE_APP_CPU: f32 = 35.0;
 const NOTICEABLE_DESKTOP_CPU: f32 = 35.0;
@@ -25,9 +26,8 @@ pub fn apply(snapshot: &SystemSnapshot, pulse: &mut TodayPulse) {
     if pulse.system_score > ATTENTION_SCORE_CAP {
         pulse.system_score = ATTENTION_SCORE_CAP;
         pulse.health_state = HealthState::Attention;
-        pulse.flow_remaining_minutes = ATTENTION_FLOW_MINUTES;
-        pulse.flow_remaining_label = "52m".to_string();
     }
+    pulse_core::cap_focus_prediction(pulse, ATTENTION_FLOW_MINUTES);
 
     if let Some(application) = top_pressure {
         mark_application_pressure(pulse, application);
