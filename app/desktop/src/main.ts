@@ -99,6 +99,99 @@ type RecoveryCandidate = {
   trustNotes: string;
 };
 
+type StorageCareAction = {
+  id: string;
+  title: string;
+  description: string;
+  confidence: string;
+  confidenceReason: string;
+  whyRecommended: string;
+  estimatedBenefit: string;
+  estimatedBenefitBytes: number;
+  interruption: string;
+  risk: string;
+  previewItemCount: number;
+  status: string;
+};
+
+type StorageRecoveryPlan = {
+  id: string;
+  missionTitle: string;
+  title: string;
+  summary: string;
+  explanation: string;
+  confidence: string;
+  confidenceReason: string;
+  expectedBenefit: string;
+  estimatedBenefitBytes: number;
+  expectedInterruption: string;
+  estimatedDuration: string;
+  status: string;
+  actions: StorageCareAction[];
+};
+
+type StoragePreviewFile = {
+  name: string;
+  itemKind: string;
+  size: string;
+  path: string;
+  reason: string;
+  confidence: string;
+  expectedBenefit: string;
+  interruption: string;
+};
+
+type StorageCareActionPreview = {
+  actionId: string;
+  title: string;
+  whatIFound: string;
+  whySelected: string;
+  confidence: string;
+  risk: string;
+  interruption: string;
+  estimatedRecovery: string;
+  estimatedRecoveryBytes: number;
+  files: StoragePreviewFile[];
+  omittedCount: number;
+};
+
+type StorageCareActionExplanation = {
+  actionId: string;
+  title: string;
+  reason: string;
+  confidence: string;
+  confidenceReason: string;
+  expectedBenefit: string;
+  risk: string;
+  interruption: string;
+};
+
+type StorageCareActionRunResult = {
+  actionId: string;
+  title: string;
+  success: boolean;
+  storageBefore: string;
+  storageBeforeBytes: number;
+  storageAfter: string;
+  storageAfterBytes: number;
+  recovered: string;
+  recoveredBytes: number;
+  currentFreeSpace: string;
+  currentFreeSpaceBytes: number;
+  storageHealth: string;
+  duration: string;
+  durationSeconds: number;
+  actionsCompleted: number;
+  skippedItems: number;
+  verified: boolean;
+  errors: string[];
+};
+
+type StorageActionDetail =
+  | { kind: "preview"; preview: StorageCareActionPreview }
+  | { kind: "explain"; explanation: StorageCareActionExplanation }
+  | { kind: "result"; result: StorageCareActionRunResult };
+
 type ActionResult = {
   actionKind: string;
   target: string;
@@ -154,6 +247,11 @@ let currentView: ViewMode = "quick";
 let selectedApplicationId: string | null = null;
 let careMessage = "";
 let autoRefreshTimer: number | undefined;
+let currentStorageRecoveryPlan: StorageRecoveryPlan | null = null;
+let storageRecoveryLoading = false;
+let storageRecoveryError = "";
+let storageActionDetail: StorageActionDetail | null = null;
+let storageActionStatuses: Record<string, string> = {};
 
 type CareMuteState = Record<
   string,
@@ -164,6 +262,7 @@ type CareMuteState = Record<
 >;
 
 const CARE_STATE_KEY = "system-pulse-care-state-v1";
+const STORAGE_RECOVERY_LATER_KEY = "system-pulse-storage-recovery-later-until";
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => {
@@ -204,6 +303,17 @@ function readCareState(): CareMuteState {
 
 function writeCareState(state: CareMuteState): void {
   localStorage.setItem(CARE_STATE_KEY, JSON.stringify(state));
+}
+
+function isStorageRecoveryDeferred(): boolean {
+  const value = localStorage.getItem(STORAGE_RECOVERY_LATER_KEY);
+  if (!value) return false;
+  const laterUntil = Number.parseInt(value, 10);
+  return Number.isFinite(laterUntil) && laterUntil > Date.now();
+}
+
+function deferStorageRecovery(): void {
+  localStorage.setItem(STORAGE_RECOVERY_LATER_KEY, String(Date.now() + 30 * 60 * 1000));
 }
 
 function shouldHideOpportunity(application: ApplicationImpact): boolean {
@@ -255,6 +365,219 @@ function signalClass(domain: DomainHealth): string {
 function careMessageHtml(): string {
   if (!careMessage) return "";
   return `<p class="care-message" role="status">${escapeHtml(careMessage)}</p>`;
+}
+
+function storageRecoveryMetric(label: string, value: string): string {
+  return `
+    <span>
+      <small>${escapeHtml(label)}</small>
+      <strong>${escapeHtml(value)}</strong>
+    </span>
+  `;
+}
+
+function storageActionIdLabel(actionId: string): string {
+  if (actionId === "empty-trash") return "Trash";
+  if (actionId === "delete-downloaded-installers") return "Downloaded installers";
+  if (actionId === "clear-obsolete-caches") return "Application caches";
+  return "Storage";
+}
+
+function storageActionStatus(action: StorageCareAction): string {
+  return storageActionStatuses[action.id] || action.status || "Ready";
+}
+
+function missionStatus(plan: StorageRecoveryPlan): string {
+  const statuses = plan.actions.map(storageActionStatus);
+  if (statuses.includes("Running")) return "Running";
+  if (statuses.includes("Completed")) return "Completed";
+  if (statuses.includes("Deferred")) return "Deferred";
+  return plan.status || "Ready";
+}
+
+function storageActionDetailHtml(detail: StorageActionDetail | null): string {
+  if (!detail) return "";
+
+  if (detail.kind === "preview") {
+    const preview = detail.preview;
+    const files = preview.files.length
+      ? preview.files
+          .map(
+            (file) => `
+              <li>
+                <span>
+                  <small>${escapeHtml(file.itemKind)}</small>
+                  <strong>${escapeHtml(file.name)}</strong>
+                  <small>${escapeHtml(file.path)}</small>
+                  <span class="storage-file-reason">${escapeHtml(file.reason)}</span>
+                </span>
+                <em>
+                  ${escapeHtml(file.size)}
+                  <small>${escapeHtml(file.confidence)} confidence</small>
+                </em>
+              </li>
+            `,
+          )
+          .join("")
+      : `<li><span><strong>No files found for this action.</strong></span></li>`;
+    const omitted = preview.omittedCount
+      ? `<p class="storage-preview-note">And ${preview.omittedCount} more item${preview.omittedCount === 1 ? "" : "s"}.</p>`
+      : "";
+
+    return `
+      <section class="storage-action-detail" aria-label="${escapeHtml(preview.title)} preview">
+        <p class="care-task-label">Preview</p>
+        <h3>${escapeHtml(preview.title)}</h3>
+        <p>${escapeHtml(preview.whatIFound)}</p>
+        <dl class="storage-explain-list compact-explain-list">
+          <div><dt>Why I selected it</dt><dd>${escapeHtml(preview.whySelected)}</dd></div>
+          <div><dt>Confidence</dt><dd>${escapeHtml(preview.confidence)}</dd></div>
+          <div><dt>Estimated recovery</dt><dd>${escapeHtml(preview.estimatedRecovery)}</dd></div>
+          <div><dt>Risk</dt><dd>${escapeHtml(preview.risk)}</dd></div>
+          <div><dt>Expected interruption</dt><dd>${escapeHtml(preview.interruption)}</dd></div>
+        </dl>
+        <ul class="storage-file-list">${files}</ul>
+        ${omitted}
+        <div class="storage-detail-actions">
+          <button class="recommended-primary-button" type="button" data-storage-run="${escapeHtml(preview.actionId)}">Run</button>
+          <button class="recommended-secondary-button" type="button" data-storage-cancel>Cancel</button>
+        </div>
+      </section>
+    `;
+  }
+
+  if (detail.kind === "explain") {
+    const explanation = detail.explanation;
+    return `
+      <section class="storage-action-detail" aria-label="${escapeHtml(explanation.title)} explanation">
+        <p class="care-task-label">Explain</p>
+        <h3>${escapeHtml(explanation.title)}</h3>
+        <dl class="storage-explain-list">
+          <div><dt>Reason</dt><dd>${escapeHtml(explanation.reason)}</dd></div>
+          <div><dt>Confidence</dt><dd>${escapeHtml(explanation.confidence)}. ${escapeHtml(explanation.confidenceReason)}</dd></div>
+          <div><dt>Expected benefit</dt><dd>${escapeHtml(explanation.expectedBenefit)}</dd></div>
+          <div><dt>Risk</dt><dd>${escapeHtml(explanation.risk)}</dd></div>
+          <div><dt>Interruption</dt><dd>${escapeHtml(explanation.interruption)}</dd></div>
+        </dl>
+        <div class="storage-detail-actions">
+          <button class="recommended-primary-button" type="button" data-storage-preview="${escapeHtml(explanation.actionId)}">Preview</button>
+          <button class="recommended-secondary-button" type="button" data-storage-cancel>Close</button>
+        </div>
+      </section>
+    `;
+  }
+
+  const result = detail.result;
+  const errors = result.errors.length
+    ? `
+      <ul class="storage-result-errors">
+        ${result.errors.map((error) => `<li>${escapeHtml(error)}</li>`).join("")}
+      </ul>
+    `
+    : "";
+
+  return `
+    <section class="storage-action-detail storage-result" aria-label="${escapeHtml(result.title)} result">
+      <p class="care-task-label">${result.success ? "Complete" : "Needs review"}</p>
+      <h3>${result.success ? "Complete" : "Partly complete"}</h3>
+      <div class="storage-result-grid">
+        ${storageRecoveryMetric("Storage before", result.storageBefore)}
+        ${storageRecoveryMetric("Storage after", result.storageAfter)}
+        ${storageRecoveryMetric("Recovered", result.recovered)}
+        ${storageRecoveryMetric("Duration", result.duration)}
+        ${storageRecoveryMetric("Actions completed", result.actionsCompleted.toString())}
+        ${storageRecoveryMetric("Skipped items", result.skippedItems.toString())}
+        ${storageRecoveryMetric("Storage health", result.storageHealth)}
+      </div>
+      <p>${result.verified ? "System Pulse measured your free space again after the action." : "System Pulse ran the action, but macOS has not reported a free-space increase yet."}</p>
+      ${errors}
+      <div class="storage-detail-actions">
+        <button class="recommended-secondary-button" type="button" data-storage-cancel>Close</button>
+      </div>
+    </section>
+  `;
+}
+
+function storageRecoveryPlanHtml(plan: StorageRecoveryPlan): string {
+  if (!plan.actions.length) {
+    return `
+      <section class="summary-section care-panel calm-panel">
+        <p class="panel-kicker recommended-kicker"><span aria-hidden="true">&#9733;</span> ${escapeHtml(plan.missionTitle)}</p>
+        <h2>${storageActionDetail ? "Storage mission complete" : "No storage mission needed"}</h2>
+        ${careMessageHtml()}
+        <p class="summary-answer">${escapeHtml(plan.explanation)}</p>
+        ${storageActionDetailHtml(storageActionDetail)}
+      </section>
+    `;
+  }
+
+  const actions = plan.actions
+    .map((action) => {
+      const status = storageActionStatus(action);
+      return `
+        <div class="storage-action-row">
+          <div>
+            <span class="mission-timeline-dot" data-status="${escapeHtml(status.toLowerCase())}" aria-hidden="true"></span>
+            <p class="care-task-label">${escapeHtml(storageActionIdLabel(action.id))}</p>
+            <strong>${escapeHtml(action.title)}</strong>
+            <small>${escapeHtml(status)} · ${escapeHtml(action.confidence)} confidence · ${escapeHtml(action.previewItemCount.toString())} item${action.previewItemCount === 1 ? "" : "s"} · ${escapeHtml(action.estimatedBenefit)} recoverable</small>
+            <p class="care-task-detail">${escapeHtml(action.description)}</p>
+            <p class="care-task-benefit">${escapeHtml(action.whyRecommended)}</p>
+          </div>
+          <div class="storage-action-buttons">
+            <button class="recommended-secondary-button" type="button" data-storage-preview="${escapeHtml(action.id)}">Preview</button>
+            <button class="recommended-primary-button" type="button" data-storage-run="${escapeHtml(action.id)}">Run</button>
+            <button class="recommended-secondary-button" type="button" data-storage-later>Later</button>
+            <button class="recommended-secondary-button" type="button" data-storage-explain="${escapeHtml(action.id)}">Explain</button>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+
+  return `
+    <section class="summary-section care-panel attention-panel storage-recovery-panel">
+      <p class="panel-kicker recommended-kicker"><span aria-hidden="true">&#9733;</span> ${escapeHtml(plan.missionTitle)}</p>
+      <h2>${escapeHtml(plan.title)}</h2>
+      <p class="care-plan-intro">${escapeHtml(plan.summary)}</p>
+      ${careMessageHtml()}
+      <div class="storage-recovery-metrics">
+        ${storageRecoveryMetric("Status", missionStatus(plan))}
+        ${storageRecoveryMetric("Confidence", plan.confidence)}
+        ${storageRecoveryMetric("Estimated time", plan.estimatedDuration)}
+        ${storageRecoveryMetric("Expected benefit", plan.expectedBenefit)}
+        ${storageRecoveryMetric("Interruption", plan.expectedInterruption)}
+      </div>
+      <p class="mission-confidence-note">${escapeHtml(plan.confidenceReason)}</p>
+      <div class="storage-action-list" aria-label="Largest recoverable items">
+        ${actions}
+      </div>
+      ${storageActionDetailHtml(storageActionDetail)}
+    </section>
+  `;
+}
+
+function storageRecoveryLoadingHtml(): string {
+  return `
+    <section class="summary-section care-panel attention-panel storage-recovery-panel">
+      <p class="panel-kicker recommended-kicker"><span aria-hidden="true">&#9733;</span> Recovery plan</p>
+      <h2>Checking safe storage recovery.</h2>
+      ${careMessageHtml()}
+      <p class="care-plan-intro">System Pulse is checking Trash, old installers, and conservative app caches. Nothing changes on your Mac.</p>
+    </section>
+  `;
+}
+
+function storageRecoveryErrorHtml(): string {
+  return `
+    <section class="summary-section care-panel attention-panel storage-recovery-panel">
+      <p class="panel-kicker recommended-kicker"><span aria-hidden="true">&#9733;</span> Recovery plan</p>
+      <h2>Storage recovery could not be checked yet.</h2>
+      ${careMessageHtml()}
+      <p class="care-plan-intro">${escapeHtml(storageRecoveryError)}</p>
+      <button class="recommended-secondary-button" type="button" data-storage-retry>Try again</button>
+    </section>
+  `;
 }
 
 function visibleApplicationOpportunities(pulse: TodayPulse): ApplicationImpact[] {
@@ -494,9 +817,6 @@ function careTasks(pulse: TodayPulse): string[] {
   if (pulse.browserHealth && domainNeedsCare(pulse.browserHealth)) {
     tasks.push(browserCareTask(pulse.browserHealth));
   }
-  if (domainNeedsCare(pulse.storageHealth)) {
-    tasks.push(domainCareTask("Storage", "storage", pulse.storageHealth, "Open Settings", "openStorageSettings"));
-  }
   return tasks.slice(0, 4);
 }
 
@@ -557,6 +877,18 @@ function quietApplicationButtons(application: ApplicationImpact, includePrimary 
 }
 
 function recommendedCare(pulse: TodayPulse): string {
+  if (!isStorageRecoveryDeferred()) {
+    if (currentStorageRecoveryPlan && (currentStorageRecoveryPlan.actions.length || storageActionDetail)) {
+      return storageRecoveryPlanHtml(currentStorageRecoveryPlan);
+    }
+    if (storageRecoveryLoading) {
+      return storageRecoveryLoadingHtml();
+    }
+    if (storageRecoveryError) {
+      return storageRecoveryErrorHtml();
+    }
+  }
+
   const tasks = careTasks(pulse);
   if (tasks.length) {
     return `
@@ -764,6 +1096,7 @@ function renderToday(pulse: TodayPulse, _refreshing = false): void {
     void loadToday({ keepExisting: true });
   });
   wireCareActions(pulse);
+  void ensureStorageRecoveryPlan();
 }
 
 function findApplicationByActionId(pulse: TodayPulse, id: string): ApplicationImpact | undefined {
@@ -840,6 +1173,137 @@ function wireCareActions(pulse: TodayPulse): void {
       }
     });
   });
+
+  document.querySelectorAll<HTMLButtonElement>("[data-storage-preview]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const actionId = button.dataset.storagePreview;
+      if (actionId) void previewStorageAction(actionId);
+    });
+  });
+
+  document.querySelectorAll<HTMLButtonElement>("[data-storage-explain]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const actionId = button.dataset.storageExplain;
+      if (actionId) void explainStorageAction(actionId);
+    });
+  });
+
+  document.querySelectorAll<HTMLButtonElement>("[data-storage-run]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const actionId = button.dataset.storageRun;
+      if (actionId) void runStorageAction(actionId);
+    });
+  });
+
+  document.querySelectorAll<HTMLButtonElement>("[data-storage-later]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const actionId = button.closest<HTMLElement>(".storage-action-row")?.querySelector<HTMLButtonElement>("[data-storage-run]")?.dataset.storageRun;
+      if (actionId) storageActionStatuses[actionId] = "Deferred";
+      deferStorageRecovery();
+      storageActionDetail = null;
+      careMessage = "Storage mission deferred. It will reappear in 30 minutes.";
+      renderToday(pulse);
+    });
+  });
+
+  document.querySelectorAll<HTMLButtonElement>("[data-storage-cancel]").forEach((button) => {
+    button.addEventListener("click", () => {
+      storageActionDetail = null;
+      renderToday(pulse);
+    });
+  });
+
+  document.querySelectorAll<HTMLButtonElement>("[data-storage-retry]").forEach((button) => {
+    button.addEventListener("click", () => {
+      void loadStorageRecoveryPlan(true);
+    });
+  });
+}
+
+async function ensureStorageRecoveryPlan(): Promise<void> {
+  if (currentView !== "today") return;
+  if (isStorageRecoveryDeferred()) return;
+  if (currentStorageRecoveryPlan || storageRecoveryLoading || storageRecoveryError) return;
+  await loadStorageRecoveryPlan();
+}
+
+async function loadStorageRecoveryPlan(force = false): Promise<void> {
+  if (storageRecoveryLoading) return;
+  if (!force && currentStorageRecoveryPlan) return;
+  if (isStorageRecoveryDeferred()) return;
+
+  storageRecoveryLoading = true;
+  storageRecoveryError = "";
+  if (currentPulse) renderToday(currentPulse);
+
+  try {
+    currentStorageRecoveryPlan = await invoke<StorageRecoveryPlan>("get_storage_recovery_plan");
+    storageActionDetail = null;
+  } catch (error) {
+    currentStorageRecoveryPlan = null;
+    storageRecoveryError = error instanceof Error ? error.message : String(error);
+  } finally {
+    storageRecoveryLoading = false;
+    if (currentPulse && currentView === "today") renderToday(currentPulse);
+  }
+}
+
+async function previewStorageAction(actionId: string): Promise<void> {
+  careMessage = "Preparing preview...";
+  if (currentPulse) renderToday(currentPulse);
+
+  try {
+    const preview = await invoke<StorageCareActionPreview>("preview_storage_care_action", { actionId });
+    careMessage = "";
+    storageActionDetail = { kind: "preview", preview };
+  } catch (error) {
+    careMessage = error instanceof Error ? error.message : String(error);
+  }
+  if (currentPulse) renderToday(currentPulse);
+}
+
+async function explainStorageAction(actionId: string): Promise<void> {
+  careMessage = "Preparing explanation...";
+  if (currentPulse) renderToday(currentPulse);
+
+  try {
+    const explanation = await invoke<StorageCareActionExplanation>("explain_storage_care_action", { actionId });
+    careMessage = "";
+    storageActionDetail = { kind: "explain", explanation };
+  } catch (error) {
+    careMessage = error instanceof Error ? error.message : String(error);
+  }
+  if (currentPulse) renderToday(currentPulse);
+}
+
+async function runStorageAction(actionId: string): Promise<void> {
+  const action = currentStorageRecoveryPlan?.actions.find((item) => item.id === actionId);
+  const title = action?.title || "this storage action";
+  const benefit = action?.estimatedBenefit || "storage space";
+  const confirmed = window.confirm(
+    `System Pulse will run ${title} and try to recover ${benefit}. Continue?`,
+  );
+  if (!confirmed) return;
+
+  storageActionStatuses[actionId] = "Running";
+  careMessage = `Running ${title}. Estimated remaining time: under 40 seconds.`;
+  storageActionDetail = null;
+  if (currentPulse) renderToday(currentPulse);
+
+  try {
+    const result = await invoke<StorageCareActionRunResult>("run_storage_care_action", { actionId });
+    storageActionStatuses[actionId] = result.success ? "Completed" : "Skipped";
+    storageActionDetail = { kind: "result", result };
+    careMessage = result.success
+      ? `${result.title} complete. Recovered ${result.recovered}.`
+      : `${result.title} partly completed. Review the details below.`;
+    currentStorageRecoveryPlan = await invoke<StorageRecoveryPlan>("get_storage_recovery_plan");
+    await loadToday({ keepExisting: true, quiet: true });
+  } catch (error) {
+    storageActionStatuses[actionId] = "Ready";
+    careMessage = error instanceof Error ? error.message : String(error);
+    if (currentPulse) renderToday(currentPulse);
+  }
 }
 
 async function performApplicationAction(application: ApplicationImpact): Promise<void> {

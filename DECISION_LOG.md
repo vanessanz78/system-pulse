@@ -1,5 +1,26 @@
 # Decision Log
 
+## 2026-07-23 - AI System Engineer core vision
+
+System Pulse should evolve from a passive monitoring dashboard and calm health companion into an AI System Engineer: a local-first assistant that diagnoses, explains, plans recovery, and executes safe care actions only with user approval.
+
+Decisions:
+
+- Adopt `docs/41-Architects-Update-006-AI-System-Engineer.md` as the durable architecture direction for the next product capability layer.
+- Keep the Companion as the quiet first surface. The AI System Engineer is the reasoning and recovery layer underneath it, not a replacement for the calm Companion experience.
+- Ask Pulse should be introduced only as a natural-language entry point over structured PulseCore diagnoses, not as a broad generic chatbot.
+- Recovery Plans should answer what is happening, why it matters, the smallest useful action, expected benefit, and expected interruption.
+- Visible actions must be real, safe, previewable where practical, and user-approved. Fake or unwired actions remain hidden.
+- AI must not run at startup or in the background by default. It should run only after user intent or an approved, documented, user-visible recovery-plan trigger.
+- The implementation sequence should begin with durable Recovery Plan and CareAction contracts before adding broader chat or automation.
+
+Implications:
+
+- PulseCore should own diagnosis and recovery reasoning.
+- Collectors should continue to observe facts only.
+- The UI should display calm decisions and approved actions.
+- Future care actions must preserve the low-compute standard and must never delete or change user data without explicit confirmation.
+
 ## 2026-07-05 - Low compute architecture standard
 
 System Pulse now follows Engineering Standard 001: a deployed app with zero active users should consume close to zero compute.

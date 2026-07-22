@@ -2,8 +2,12 @@ mod collectors;
 mod flow_truth;
 mod models;
 mod pulse_core;
+mod storage_recovery;
 
 use models::TodayPulse;
+use storage_recovery::{
+    CareActionExplanation, CareActionPreview, CareActionRunResult, RecoveryPlan,
+};
 use tauri::image::Image;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -66,6 +70,26 @@ fn open_quick_checkin(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 fn perform_care_action(action_kind: String, target: String) -> Result<String, String> {
     platform_perform_care_action(&action_kind, &target)
+}
+
+#[tauri::command]
+fn get_storage_recovery_plan() -> Result<RecoveryPlan, String> {
+    storage_recovery::plan()
+}
+
+#[tauri::command]
+fn preview_storage_care_action(action_id: String) -> Result<CareActionPreview, String> {
+    storage_recovery::preview(&action_id)
+}
+
+#[tauri::command]
+fn explain_storage_care_action(action_id: String) -> Result<CareActionExplanation, String> {
+    storage_recovery::explain(&action_id)
+}
+
+#[tauri::command]
+fn run_storage_care_action(action_id: String) -> Result<CareActionRunResult, String> {
+    storage_recovery::run(&action_id)
 }
 
 #[cfg(target_os = "macos")]
@@ -227,7 +251,11 @@ fn main() {
             update_tray_score,
             open_today_window,
             open_quick_checkin,
-            perform_care_action
+            perform_care_action,
+            get_storage_recovery_plan,
+            preview_storage_care_action,
+            explain_storage_care_action,
+            run_storage_care_action
         ])
         .run(tauri::generate_context!())
         .expect("error while running System Pulse");
