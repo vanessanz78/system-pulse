@@ -18,11 +18,29 @@ Then read `docs/37-Feeling-Bible.md`.
 
 Then read `docs/38-Candle-Pulse-Visual-Guide.md`.
 
+Then read `docs/41-Architects-Update-006-AI-System-Engineer.md` before starting assistant, automation, diagnosis, recovery-plan, or care-action work.
+
 ## Sprint Goal
 
 Transform System Pulse from a dashboard into a trusted companion.
 
 Every screen should help the user feel calm, in control, reassured, and ready to keep creating.
+
+## Current Core Vision Update
+
+Date: 23 July 2026
+
+Vanessa clarified that the long-term core vision should be System Pulse as an AI System Engineer.
+
+This extends the existing Companion direction rather than replacing it.
+
+The Companion remains the quiet first surface. Today remains the calm plan. The AI System Engineer is the reasoning, diagnosis, recovery-plan, and safe-execution layer underneath those surfaces.
+
+System Pulse should eventually diagnose, explain, recommend the least disruptive useful care path, and execute safe fixes only with user approval.
+
+Implementation must not start with a broad chatbot. Future work should first define Recovery Plan and CareAction contracts, then add one real, safe, low-risk care action with Preview, Explain, Run, and Later before expanding Ask Pulse.
+
+AI must not run at startup or in the background by default. Low-compute and local-first principles still apply.
 
 ## Mental Model
 
