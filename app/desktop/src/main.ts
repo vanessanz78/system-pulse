@@ -103,35 +103,52 @@ type StorageCareAction = {
   id: string;
   title: string;
   description: string;
+  confidence: string;
+  confidenceReason: string;
+  whyRecommended: string;
   estimatedBenefit: string;
   estimatedBenefitBytes: number;
   interruption: string;
   risk: string;
-  confidence: number;
   previewItemCount: number;
+  status: string;
 };
 
 type StorageRecoveryPlan = {
   id: string;
+  missionTitle: string;
   title: string;
+  summary: string;
   explanation: string;
-  estimatedBenefit: string;
+  confidence: string;
+  confidenceReason: string;
+  expectedBenefit: string;
   estimatedBenefitBytes: number;
-  estimatedTime: string;
-  interruption: string;
-  confidence: number;
+  expectedInterruption: string;
+  estimatedDuration: string;
+  status: string;
   actions: StorageCareAction[];
 };
 
 type StoragePreviewFile = {
   name: string;
+  itemKind: string;
   size: string;
   path: string;
+  reason: string;
+  confidence: string;
+  expectedBenefit: string;
+  interruption: string;
 };
 
 type StorageCareActionPreview = {
   actionId: string;
   title: string;
+  whatIFound: string;
+  whySelected: string;
+  confidence: string;
+  risk: string;
+  interruption: string;
   estimatedRecovery: string;
   estimatedRecoveryBytes: number;
   files: StoragePreviewFile[];
@@ -142,6 +159,8 @@ type StorageCareActionExplanation = {
   actionId: string;
   title: string;
   reason: string;
+  confidence: string;
+  confidenceReason: string;
   expectedBenefit: string;
   risk: string;
   interruption: string;
@@ -151,11 +170,19 @@ type StorageCareActionRunResult = {
   actionId: string;
   title: string;
   success: boolean;
+  storageBefore: string;
+  storageBeforeBytes: number;
+  storageAfter: string;
+  storageAfterBytes: number;
   recovered: string;
   recoveredBytes: number;
   currentFreeSpace: string;
   currentFreeSpaceBytes: number;
   storageHealth: string;
+  duration: string;
+  durationSeconds: number;
+  actionsCompleted: number;
+  skippedItems: number;
   verified: boolean;
   errors: string[];
 };
@@ -224,6 +251,7 @@ let currentStorageRecoveryPlan: StorageRecoveryPlan | null = null;
 let storageRecoveryLoading = false;
 let storageRecoveryError = "";
 let storageActionDetail: StorageActionDetail | null = null;
+let storageActionStatuses: Record<string, string> = {};
 
 type CareMuteState = Record<
   string,
@@ -355,6 +383,18 @@ function storageActionIdLabel(actionId: string): string {
   return "Storage";
 }
 
+function storageActionStatus(action: StorageCareAction): string {
+  return storageActionStatuses[action.id] || action.status || "Ready";
+}
+
+function missionStatus(plan: StorageRecoveryPlan): string {
+  const statuses = plan.actions.map(storageActionStatus);
+  if (statuses.includes("Running")) return "Running";
+  if (statuses.includes("Completed")) return "Completed";
+  if (statuses.includes("Deferred")) return "Deferred";
+  return plan.status || "Ready";
+}
+
 function storageActionDetailHtml(detail: StorageActionDetail | null): string {
   if (!detail) return "";
 
@@ -366,10 +406,15 @@ function storageActionDetailHtml(detail: StorageActionDetail | null): string {
             (file) => `
               <li>
                 <span>
+                  <small>${escapeHtml(file.itemKind)}</small>
                   <strong>${escapeHtml(file.name)}</strong>
                   <small>${escapeHtml(file.path)}</small>
+                  <span class="storage-file-reason">${escapeHtml(file.reason)}</span>
                 </span>
-                <em>${escapeHtml(file.size)}</em>
+                <em>
+                  ${escapeHtml(file.size)}
+                  <small>${escapeHtml(file.confidence)} confidence</small>
+                </em>
               </li>
             `,
           )
@@ -383,7 +428,14 @@ function storageActionDetailHtml(detail: StorageActionDetail | null): string {
       <section class="storage-action-detail" aria-label="${escapeHtml(preview.title)} preview">
         <p class="care-task-label">Preview</p>
         <h3>${escapeHtml(preview.title)}</h3>
-        <p>Estimated recovery ${escapeHtml(preview.estimatedRecovery)}.</p>
+        <p>${escapeHtml(preview.whatIFound)}</p>
+        <dl class="storage-explain-list compact-explain-list">
+          <div><dt>Why I selected it</dt><dd>${escapeHtml(preview.whySelected)}</dd></div>
+          <div><dt>Confidence</dt><dd>${escapeHtml(preview.confidence)}</dd></div>
+          <div><dt>Estimated recovery</dt><dd>${escapeHtml(preview.estimatedRecovery)}</dd></div>
+          <div><dt>Risk</dt><dd>${escapeHtml(preview.risk)}</dd></div>
+          <div><dt>Expected interruption</dt><dd>${escapeHtml(preview.interruption)}</dd></div>
+        </dl>
         <ul class="storage-file-list">${files}</ul>
         ${omitted}
         <div class="storage-detail-actions">
@@ -402,6 +454,7 @@ function storageActionDetailHtml(detail: StorageActionDetail | null): string {
         <h3>${escapeHtml(explanation.title)}</h3>
         <dl class="storage-explain-list">
           <div><dt>Reason</dt><dd>${escapeHtml(explanation.reason)}</dd></div>
+          <div><dt>Confidence</dt><dd>${escapeHtml(explanation.confidence)}. ${escapeHtml(explanation.confidenceReason)}</dd></div>
           <div><dt>Expected benefit</dt><dd>${escapeHtml(explanation.expectedBenefit)}</dd></div>
           <div><dt>Risk</dt><dd>${escapeHtml(explanation.risk)}</dd></div>
           <div><dt>Interruption</dt><dd>${escapeHtml(explanation.interruption)}</dd></div>
@@ -428,8 +481,12 @@ function storageActionDetailHtml(detail: StorageActionDetail | null): string {
       <p class="care-task-label">${result.success ? "Complete" : "Needs review"}</p>
       <h3>${result.success ? "Complete" : "Partly complete"}</h3>
       <div class="storage-result-grid">
+        ${storageRecoveryMetric("Storage before", result.storageBefore)}
+        ${storageRecoveryMetric("Storage after", result.storageAfter)}
         ${storageRecoveryMetric("Recovered", result.recovered)}
-        ${storageRecoveryMetric("Current free space", result.currentFreeSpace)}
+        ${storageRecoveryMetric("Duration", result.duration)}
+        ${storageRecoveryMetric("Actions completed", result.actionsCompleted.toString())}
+        ${storageRecoveryMetric("Skipped items", result.skippedItems.toString())}
         ${storageRecoveryMetric("Storage health", result.storageHealth)}
       </div>
       <p>${result.verified ? "System Pulse measured your free space again after the action." : "System Pulse ran the action, but macOS has not reported a free-space increase yet."}</p>
@@ -445,7 +502,8 @@ function storageRecoveryPlanHtml(plan: StorageRecoveryPlan): string {
   if (!plan.actions.length) {
     return `
       <section class="summary-section care-panel calm-panel">
-        <h2>${storageActionDetail ? "Storage recovery complete" : "No storage care needed"}</h2>
+        <p class="panel-kicker recommended-kicker"><span aria-hidden="true">&#9733;</span> ${escapeHtml(plan.missionTitle)}</p>
+        <h2>${storageActionDetail ? "Storage mission complete" : "No storage mission needed"}</h2>
         ${careMessageHtml()}
         <p class="summary-answer">${escapeHtml(plan.explanation)}</p>
         ${storageActionDetailHtml(storageActionDetail)}
@@ -454,14 +512,17 @@ function storageRecoveryPlanHtml(plan: StorageRecoveryPlan): string {
   }
 
   const actions = plan.actions
-    .map(
-      (action) => `
+    .map((action) => {
+      const status = storageActionStatus(action);
+      return `
         <div class="storage-action-row">
           <div>
+            <span class="mission-timeline-dot" data-status="${escapeHtml(status.toLowerCase())}" aria-hidden="true"></span>
             <p class="care-task-label">${escapeHtml(storageActionIdLabel(action.id))}</p>
             <strong>${escapeHtml(action.title)}</strong>
-            <small>${escapeHtml(action.previewItemCount.toString())} item${action.previewItemCount === 1 ? "" : "s"} · ${escapeHtml(action.estimatedBenefit)} recoverable</small>
+            <small>${escapeHtml(status)} · ${escapeHtml(action.confidence)} confidence · ${escapeHtml(action.previewItemCount.toString())} item${action.previewItemCount === 1 ? "" : "s"} · ${escapeHtml(action.estimatedBenefit)} recoverable</small>
             <p class="care-task-detail">${escapeHtml(action.description)}</p>
+            <p class="care-task-benefit">${escapeHtml(action.whyRecommended)}</p>
           </div>
           <div class="storage-action-buttons">
             <button class="recommended-secondary-button" type="button" data-storage-preview="${escapeHtml(action.id)}">Preview</button>
@@ -470,21 +531,24 @@ function storageRecoveryPlanHtml(plan: StorageRecoveryPlan): string {
             <button class="recommended-secondary-button" type="button" data-storage-explain="${escapeHtml(action.id)}">Explain</button>
           </div>
         </div>
-      `,
-    )
+      `;
+    })
     .join("");
 
   return `
     <section class="summary-section care-panel attention-panel storage-recovery-panel">
-      <p class="panel-kicker recommended-kicker"><span aria-hidden="true">&#9733;</span> Recovery plan</p>
+      <p class="panel-kicker recommended-kicker"><span aria-hidden="true">&#9733;</span> ${escapeHtml(plan.missionTitle)}</p>
       <h2>${escapeHtml(plan.title)}</h2>
-      <p class="care-plan-intro">${escapeHtml(plan.explanation)}</p>
+      <p class="care-plan-intro">${escapeHtml(plan.summary)}</p>
       ${careMessageHtml()}
       <div class="storage-recovery-metrics">
-        ${storageRecoveryMetric("Estimated time", plan.estimatedTime)}
-        ${storageRecoveryMetric("Expected improvement", plan.estimatedBenefit)}
-        ${storageRecoveryMetric("Interruption", plan.interruption)}
+        ${storageRecoveryMetric("Status", missionStatus(plan))}
+        ${storageRecoveryMetric("Confidence", plan.confidence)}
+        ${storageRecoveryMetric("Estimated time", plan.estimatedDuration)}
+        ${storageRecoveryMetric("Expected benefit", plan.expectedBenefit)}
+        ${storageRecoveryMetric("Interruption", plan.expectedInterruption)}
       </div>
+      <p class="mission-confidence-note">${escapeHtml(plan.confidenceReason)}</p>
       <div class="storage-action-list" aria-label="Largest recoverable items">
         ${actions}
       </div>
@@ -1133,9 +1197,11 @@ function wireCareActions(pulse: TodayPulse): void {
 
   document.querySelectorAll<HTMLButtonElement>("[data-storage-later]").forEach((button) => {
     button.addEventListener("click", () => {
+      const actionId = button.closest<HTMLElement>(".storage-action-row")?.querySelector<HTMLButtonElement>("[data-storage-run]")?.dataset.storageRun;
+      if (actionId) storageActionStatuses[actionId] = "Deferred";
       deferStorageRecovery();
       storageActionDetail = null;
-      careMessage = "Storage recovery will reappear in 30 minutes.";
+      careMessage = "Storage mission deferred. It will reappear in 30 minutes.";
       renderToday(pulse);
     });
   });
@@ -1219,12 +1285,14 @@ async function runStorageAction(actionId: string): Promise<void> {
   );
   if (!confirmed) return;
 
-  careMessage = `Running ${title}...`;
+  storageActionStatuses[actionId] = "Running";
+  careMessage = `Running ${title}. Estimated remaining time: under 40 seconds.`;
   storageActionDetail = null;
   if (currentPulse) renderToday(currentPulse);
 
   try {
     const result = await invoke<StorageCareActionRunResult>("run_storage_care_action", { actionId });
+    storageActionStatuses[actionId] = result.success ? "Completed" : "Skipped";
     storageActionDetail = { kind: "result", result };
     careMessage = result.success
       ? `${result.title} complete. Recovered ${result.recovered}.`
@@ -1232,6 +1300,7 @@ async function runStorageAction(actionId: string): Promise<void> {
     currentStorageRecoveryPlan = await invoke<StorageRecoveryPlan>("get_storage_recovery_plan");
     await loadToday({ keepExisting: true, quiet: true });
   } catch (error) {
+    storageActionStatuses[actionId] = "Ready";
     careMessage = error instanceof Error ? error.message : String(error);
     if (currentPulse) renderToday(currentPulse);
   }

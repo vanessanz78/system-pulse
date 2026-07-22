@@ -1053,11 +1053,18 @@ p {
   padding-top: 0.72rem;
 }
 
+.mission-confidence-note {
+  color: rgba(247, 250, 248, 0.68);
+  font-size: 0.78rem;
+  line-height: 1.42;
+}
+
 .storage-action-row {
   align-items: start;
   display: grid;
   gap: 0.85rem;
   grid-template-columns: minmax(0, 1fr) auto;
+  position: relative;
 }
 
 .storage-action-row > div:first-child {
@@ -1074,6 +1081,37 @@ p {
 .storage-action-row small,
 .storage-action-row .care-task-detail {
   color: var(--muted);
+}
+
+.storage-action-row .care-task-benefit {
+  color: rgba(247, 250, 248, 0.74);
+  font-weight: 520;
+}
+
+.mission-timeline-dot {
+  background: var(--healthy);
+  border-radius: 999px;
+  box-shadow: 0 0 0 0.28rem rgba(89, 255, 167, 0.1);
+  height: 0.52rem;
+  left: -0.22rem;
+  position: absolute;
+  top: 0.42rem;
+  width: 0.52rem;
+}
+
+.mission-timeline-dot[data-status="running"] {
+  background: var(--attention);
+  box-shadow: 0 0 0 0.28rem rgba(255, 181, 45, 0.12);
+}
+
+.mission-timeline-dot[data-status="completed"] {
+  background: var(--healthy);
+}
+
+.mission-timeline-dot[data-status="deferred"],
+.mission-timeline-dot[data-status="skipped"] {
+  background: rgba(247, 250, 248, 0.42);
+  box-shadow: 0 0 0 0.28rem rgba(255, 255, 255, 0.05);
 }
 
 .storage-action-buttons,
@@ -1152,11 +1190,29 @@ p {
   overflow-wrap: anywhere;
 }
 
+.storage-file-reason {
+  color: rgba(247, 250, 248, 0.72);
+  font-size: 0.75rem;
+  line-height: 1.35;
+  margin-top: 0.12rem;
+}
+
 .storage-file-list em {
+  display: grid;
+  gap: 0.14rem;
   color: var(--healthy);
   font-size: 0.78rem;
   font-style: normal;
   font-weight: 700;
+  justify-items: end;
+  min-width: 5.6rem;
+  text-align: right;
+}
+
+.storage-file-list em small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 600;
 }
 
 .storage-preview-note {
@@ -1168,6 +1224,13 @@ p {
   display: grid;
   gap: 0.52rem;
   margin: 0;
+}
+
+.compact-explain-list {
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(221, 255, 238, 0.08);
+  border-radius: 8px;
+  padding: 0.64rem;
 }
 
 .storage-explain-list div {
