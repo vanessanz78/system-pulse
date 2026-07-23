@@ -205,6 +205,22 @@ jobs:
 
           codesign --verify --deep --strict --verbose=2 "$app_path"
           xcrun stapler validate "$app_path"
+          if ! xcrun stapler validate "$dmg_path"; then
+            if [ -n "${APPLE_API_KEY:-}" ] && [ -n "${APPLE_API_ISSUER:-}" ] && [ -n "${APPLE_API_KEY_PATH:-}" ]; then
+              xcrun notarytool submit "$dmg_path" \
+                --key "$APPLE_API_KEY_PATH" \
+                --key-id "$APPLE_API_KEY" \
+                --issuer "$APPLE_API_ISSUER" \
+                --wait
+            else
+              xcrun notarytool submit "$dmg_path" \
+                --apple-id "$APPLE_ID" \
+                --password "$APPLE_PASSWORD" \
+                --team-id "$APPLE_TEAM_ID" \
+                --wait
+            fi
+            xcrun stapler staple "$dmg_path"
+          fi
           xcrun stapler validate "$dmg_path"
           spctl -a -vvv -t install "$app_path"
           spctl -a -vvv -t open --context context:primary-signature "$dmg_path"
