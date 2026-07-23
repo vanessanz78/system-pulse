@@ -478,7 +478,7 @@ fn browser_preview_details(browser: &BrowserObservation) -> Vec<MissionPreviewFi
     details.push(preview_detail(
         "Duplicate tabs",
         "Privacy",
-        "Not inspected",
+        "Not inspected".to_string(),
         &browser.name,
         "System Pulse does not read URLs or page content, so duplicate tabs are not checked in this build.",
     ));
