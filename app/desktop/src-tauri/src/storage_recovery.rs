@@ -192,19 +192,19 @@ impl StorageCareAction for EmptyTrashAction {
     }
 
     fn preview(&self) -> Result<CareActionPreview, String> {
-        preview_from_estimate(self.estimate()?)
+        preview_from_estimate(StorageCareAction::estimate(self)?)
     }
 
     fn explain(&self) -> Result<CareActionExplanation, String> {
-        explanation_from_estimate(self.estimate()?)
+        explanation_from_estimate(StorageCareAction::estimate(self)?)
     }
 
     fn estimate(&self) -> Result<ActionEstimate, String> {
         let trash = home_path()?.join(".Trash");
         let items = direct_children(&trash)?;
         Ok(ActionEstimate {
-            action_id: self.action_id(),
-            title: self.title(),
+            action_id: StorageCareAction::action_id(self),
+            title: StorageCareAction::title(self),
             description: "Remove everything already in Trash.",
             reason: "Trash already contains items you have chosen to remove. Emptying it is the safest first storage recovery step because it does not touch working files.",
             risk: "Low. This permanently removes items that are already in Trash.",
@@ -216,7 +216,7 @@ impl StorageCareAction for EmptyTrashAction {
     }
 
     fn execute(&self) -> Result<CareActionRunResult, String> {
-        execute_estimate(self.estimate()?)
+        execute_estimate(StorageCareAction::estimate(self)?)
     }
 
 }
@@ -231,11 +231,11 @@ impl StorageCareAction for DeleteDownloadedInstallersAction {
     }
 
     fn preview(&self) -> Result<CareActionPreview, String> {
-        preview_from_estimate(self.estimate()?)
+        preview_from_estimate(StorageCareAction::estimate(self)?)
     }
 
     fn explain(&self) -> Result<CareActionExplanation, String> {
-        explanation_from_estimate(self.estimate()?)
+        explanation_from_estimate(StorageCareAction::estimate(self)?)
     }
 
     fn estimate(&self) -> Result<ActionEstimate, String> {
@@ -243,8 +243,8 @@ impl StorageCareAction for DeleteDownloadedInstallersAction {
         let min_age = age_threshold_days("SYSTEM_PULSE_INSTALLER_MIN_AGE_DAYS", INSTALLER_MIN_AGE_DAYS);
         let items = installer_files(&downloads, min_age)?;
         Ok(ActionEstimate {
-            action_id: self.action_id(),
-            title: self.title(),
+            action_id: StorageCareAction::action_id(self),
+            title: StorageCareAction::title(self),
             description: "Remove old app installers from Downloads.",
             reason: "Downloaded installers are usually only needed once. I only include DMG, PKG, and ZIP files older than the configured age threshold.",
             risk: "Low. This removes installer files, not documents or app data.",
@@ -256,7 +256,7 @@ impl StorageCareAction for DeleteDownloadedInstallersAction {
     }
 
     fn execute(&self) -> Result<CareActionRunResult, String> {
-        execute_estimate(self.estimate()?)
+        execute_estimate(StorageCareAction::estimate(self)?)
     }
 
 }
@@ -271,11 +271,11 @@ impl StorageCareAction for ClearObsoleteCachesAction {
     }
 
     fn preview(&self) -> Result<CareActionPreview, String> {
-        preview_from_estimate(self.estimate()?)
+        preview_from_estimate(StorageCareAction::estimate(self)?)
     }
 
     fn explain(&self) -> Result<CareActionExplanation, String> {
-        explanation_from_estimate(self.estimate()?)
+        explanation_from_estimate(StorageCareAction::estimate(self)?)
     }
 
     fn estimate(&self) -> Result<ActionEstimate, String> {
@@ -283,8 +283,8 @@ impl StorageCareAction for ClearObsoleteCachesAction {
         let min_age = age_threshold_days("SYSTEM_PULSE_CACHE_MIN_AGE_DAYS", CACHE_MIN_AGE_DAYS);
         let items = obsolete_cache_files(&caches, min_age)?;
         Ok(ActionEstimate {
-            action_id: self.action_id(),
-            title: self.title(),
+            action_id: StorageCareAction::action_id(self),
+            title: StorageCareAction::title(self),
             description: "Remove older cache files from conservative app cache folders.",
             reason: "Application caches can be rebuilt by the app. I skip browser profiles, preferences, documents, mail, photos, messages, and cloud data.",
             risk: "Low to medium. Some apps may rebuild cache files the next time they open.",
@@ -296,7 +296,7 @@ impl StorageCareAction for ClearObsoleteCachesAction {
     }
 
     fn execute(&self) -> Result<CareActionRunResult, String> {
-        execute_estimate(self.estimate()?)
+        execute_estimate(StorageCareAction::estimate(self)?)
     }
 
 }
@@ -486,7 +486,7 @@ fn execute_estimate(estimate: ActionEstimate) -> Result<CareActionRunResult, Str
     let before_free_bytes = root_free_space_bytes().unwrap_or(0);
     let started_at = Instant::now();
     let estimated_bytes = estimate_total_bytes(&estimate);
-    let mut removed_bytes = 0;
+    let mut removed_bytes: u64 = 0;
     let mut errors = Vec::new();
     let mut actions_completed = 0;
 
