@@ -1,13 +1,15 @@
 mod collectors;
 mod flow_truth;
+mod mission_engine;
 mod models;
 mod pulse_core;
 mod storage_recovery;
 
-use models::TodayPulse;
-use storage_recovery::{
-    CareActionExplanation, CareActionPreview, CareActionRunResult, RecoveryPlan,
+use mission_engine::{
+    AskPulseRoute, MissionExplanation, MissionPreview, MissionRegistry, MissionRegistrySnapshot,
+    MissionResult,
 };
+use models::TodayPulse;
 use tauri::image::Image;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -73,23 +75,35 @@ fn perform_care_action(action_kind: String, target: String) -> Result<String, St
 }
 
 #[tauri::command]
-fn get_storage_recovery_plan() -> Result<RecoveryPlan, String> {
-    storage_recovery::plan()
+fn get_pulse_missions() -> Result<MissionRegistrySnapshot, String> {
+    mission_registry().snapshot()
 }
 
 #[tauri::command]
-fn preview_storage_care_action(action_id: String) -> Result<CareActionPreview, String> {
-    storage_recovery::preview(&action_id)
+fn preview_mission_action(action_id: String) -> Result<MissionPreview, String> {
+    mission_registry().preview(&action_id)
 }
 
 #[tauri::command]
-fn explain_storage_care_action(action_id: String) -> Result<CareActionExplanation, String> {
-    storage_recovery::explain(&action_id)
+fn explain_mission_action(action_id: String) -> Result<MissionExplanation, String> {
+    mission_registry().explain(&action_id)
 }
 
 #[tauri::command]
-fn run_storage_care_action(action_id: String) -> Result<CareActionRunResult, String> {
-    storage_recovery::run(&action_id)
+fn run_mission_action(action_id: String) -> Result<MissionResult, String> {
+    mission_registry().execute(&action_id)
+}
+
+#[tauri::command]
+fn route_ask_pulse(query: String) -> Result<AskPulseRoute, String> {
+    let snapshot = mission_registry().snapshot()?;
+    Ok(mission_engine::route_ask_pulse(&query, &snapshot))
+}
+
+fn mission_registry() -> MissionRegistry {
+    let mut registry = MissionRegistry::new();
+    registry.register(storage_recovery::StorageMissionProvider);
+    registry
 }
 
 #[cfg(target_os = "macos")]
@@ -252,10 +266,11 @@ fn main() {
             open_today_window,
             open_quick_checkin,
             perform_care_action,
-            get_storage_recovery_plan,
-            preview_storage_care_action,
-            explain_storage_care_action,
-            run_storage_care_action
+            get_pulse_missions,
+            preview_mission_action,
+            explain_mission_action,
+            run_mission_action,
+            route_ask_pulse
         ])
         .run(tauri::generate_context!())
         .expect("error while running System Pulse");

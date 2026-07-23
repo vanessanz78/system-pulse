@@ -42,6 +42,25 @@ Implementation must not start with a broad chatbot. Future work should first def
 
 AI must not run at startup or in the background by default. Low-compute and local-first principles still apply.
 
+## Current Mission Engine Pass
+
+Date: 23 July 2026
+
+Sprint 2 turns Storage Recovery into the reference implementation for a reusable PulseCore Mission Engine.
+
+Scope:
+
+- Create the generic PulseMission, MissionAction, MissionResult, lifecycle, Mission Registry, and Mission Planner contracts.
+- Register Storage Recovery through the Mission Registry.
+- Keep Today visually unchanged while consuming generic mission objects.
+- Keep Companion unchanged.
+- Add only an Ask Pulse routing abstraction, not a chat assistant.
+- Do not implement Browser, Battery, Developer, Network, Security, or multi-mission dashboard features yet.
+
+Durable architecture reference:
+
+- `docs/42-Mission-Engine.md`
+
 ## Mental Model
 
 Stop designing System Pulse like software. Start designing it like a trusted companion that quietly checks in.

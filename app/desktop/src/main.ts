@@ -99,7 +99,7 @@ type RecoveryCandidate = {
   trustNotes: string;
 };
 
-type StorageCareAction = {
+type MissionAction = {
   id: string;
   title: string;
   description: string;
@@ -114,23 +114,33 @@ type StorageCareAction = {
   status: string;
 };
 
-type StorageRecoveryPlan = {
+type PulseMission = {
   id: string;
+  category: string;
   missionTitle: string;
   title: string;
   summary: string;
   explanation: string;
   confidence: string;
   confidenceReason: string;
-  expectedBenefit: string;
+  status: string;
+  priority: number;
+  estimatedBenefit: string;
   estimatedBenefitBytes: number;
+  expectedBenefit: string;
   expectedInterruption: string;
   estimatedDuration: string;
-  status: string;
-  actions: StorageCareAction[];
+  diagnosis: string;
+  recoveryPlan: string;
+  actions: MissionAction[];
 };
 
-type StoragePreviewFile = {
+type MissionRegistrySnapshot = {
+  topMission: PulseMission | null;
+  otherOpportunities: PulseMission[];
+};
+
+type MissionPreviewFile = {
   name: string;
   itemKind: string;
   size: string;
@@ -141,7 +151,7 @@ type StoragePreviewFile = {
   interruption: string;
 };
 
-type StorageCareActionPreview = {
+type MissionActionPreview = {
   actionId: string;
   title: string;
   whatIFound: string;
@@ -151,11 +161,11 @@ type StorageCareActionPreview = {
   interruption: string;
   estimatedRecovery: string;
   estimatedRecoveryBytes: number;
-  files: StoragePreviewFile[];
+  files: MissionPreviewFile[];
   omittedCount: number;
 };
 
-type StorageCareActionExplanation = {
+type MissionActionExplanation = {
   actionId: string;
   title: string;
   reason: string;
@@ -166,16 +176,21 @@ type StorageCareActionExplanation = {
   interruption: string;
 };
 
-type StorageCareActionRunResult = {
+type MissionActionRunResult = {
   actionId: string;
   title: string;
   success: boolean;
+  completed: boolean;
+  skipped: boolean;
+  failed: boolean;
   storageBefore: string;
   storageBeforeBytes: number;
   storageAfter: string;
   storageAfterBytes: number;
   recovered: string;
   recoveredBytes: number;
+  recoveredSpace: string;
+  recoveredSpaceBytes: number;
   currentFreeSpace: string;
   currentFreeSpaceBytes: number;
   storageHealth: string;
@@ -184,13 +199,14 @@ type StorageCareActionRunResult = {
   actionsCompleted: number;
   skippedItems: number;
   verified: boolean;
+  verification: string;
   errors: string[];
 };
 
-type StorageActionDetail =
-  | { kind: "preview"; preview: StorageCareActionPreview }
-  | { kind: "explain"; explanation: StorageCareActionExplanation }
-  | { kind: "result"; result: StorageCareActionRunResult };
+type MissionActionDetail =
+  | { kind: "preview"; preview: MissionActionPreview }
+  | { kind: "explain"; explanation: MissionActionExplanation }
+  | { kind: "result"; result: MissionActionRunResult };
 
 type ActionResult = {
   actionKind: string;
@@ -247,11 +263,11 @@ let currentView: ViewMode = "quick";
 let selectedApplicationId: string | null = null;
 let careMessage = "";
 let autoRefreshTimer: number | undefined;
-let currentStorageRecoveryPlan: StorageRecoveryPlan | null = null;
-let storageRecoveryLoading = false;
-let storageRecoveryError = "";
-let storageActionDetail: StorageActionDetail | null = null;
-let storageActionStatuses: Record<string, string> = {};
+let currentPulseMission: PulseMission | null = null;
+let missionLoading = false;
+let missionError = "";
+let missionActionDetail: MissionActionDetail | null = null;
+let missionActionStatuses: Record<string, string> = {};
 
 type CareMuteState = Record<
   string,
@@ -262,7 +278,17 @@ type CareMuteState = Record<
 >;
 
 const CARE_STATE_KEY = "system-pulse-care-state-v1";
-const STORAGE_RECOVERY_LATER_KEY = "system-pulse-storage-recovery-later-until";
+const MISSION_LATER_KEY = "system-pulse-mission-later-until";
+const MISSION_TELEMETRY_KEY = "system-pulse-mission-telemetry-v1";
+
+type LocalMissionTelemetryEvent = {
+  missionId: string;
+  actionId?: string;
+  event: "Mission started" | "Mission completed" | "Mission cancelled" | "Mission deferred";
+  timestamp: string;
+  durationMs?: number;
+  verification?: string;
+};
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => {
@@ -305,15 +331,26 @@ function writeCareState(state: CareMuteState): void {
   localStorage.setItem(CARE_STATE_KEY, JSON.stringify(state));
 }
 
-function isStorageRecoveryDeferred(): boolean {
-  const value = localStorage.getItem(STORAGE_RECOVERY_LATER_KEY);
+function isMissionDeferred(): boolean {
+  const value = localStorage.getItem(MISSION_LATER_KEY);
   if (!value) return false;
   const laterUntil = Number.parseInt(value, 10);
   return Number.isFinite(laterUntil) && laterUntil > Date.now();
 }
 
-function deferStorageRecovery(): void {
-  localStorage.setItem(STORAGE_RECOVERY_LATER_KEY, String(Date.now() + 30 * 60 * 1000));
+function deferMission(): void {
+  localStorage.setItem(MISSION_LATER_KEY, String(Date.now() + 30 * 60 * 1000));
+}
+
+function recordMissionTelemetry(event: LocalMissionTelemetryEvent): void {
+  try {
+    const existing = localStorage.getItem(MISSION_TELEMETRY_KEY);
+    const events = existing ? (JSON.parse(existing) as LocalMissionTelemetryEvent[]) : [];
+    events.push(event);
+    localStorage.setItem(MISSION_TELEMETRY_KEY, JSON.stringify(events.slice(-50)));
+  } catch {
+    // Telemetry is local-only and best-effort; mission execution must not depend on it.
+  }
 }
 
 function shouldHideOpportunity(application: ApplicationImpact): boolean {
@@ -367,7 +404,7 @@ function careMessageHtml(): string {
   return `<p class="care-message" role="status">${escapeHtml(careMessage)}</p>`;
 }
 
-function storageRecoveryMetric(label: string, value: string): string {
+function missionMetric(label: string, value: string): string {
   return `
     <span>
       <small>${escapeHtml(label)}</small>
@@ -376,26 +413,27 @@ function storageRecoveryMetric(label: string, value: string): string {
   `;
 }
 
-function storageActionIdLabel(actionId: string): string {
-  if (actionId === "empty-trash") return "Trash";
-  if (actionId === "delete-downloaded-installers") return "Downloaded installers";
-  if (actionId === "clear-obsolete-caches") return "Application caches";
-  return "Storage";
+function missionActionIdLabel(actionId: string): string {
+  const localId = actionId.split(":").pop() || actionId;
+  if (localId === "empty-trash") return "Trash";
+  if (localId === "delete-downloaded-installers") return "Downloaded installers";
+  if (localId === "clear-obsolete-caches") return "Application caches";
+  return "Mission";
 }
 
-function storageActionStatus(action: StorageCareAction): string {
-  return storageActionStatuses[action.id] || action.status || "Ready";
+function missionActionStatus(action: MissionAction): string {
+  return missionActionStatuses[action.id] || action.status || "Ready";
 }
 
-function missionStatus(plan: StorageRecoveryPlan): string {
-  const statuses = plan.actions.map(storageActionStatus);
+function missionStatus(plan: PulseMission): string {
+  const statuses = plan.actions.map(missionActionStatus);
   if (statuses.includes("Running")) return "Running";
   if (statuses.includes("Completed")) return "Completed";
   if (statuses.includes("Deferred")) return "Deferred";
   return plan.status || "Ready";
 }
 
-function storageActionDetailHtml(detail: StorageActionDetail | null): string {
+function missionActionDetailHtml(detail: MissionActionDetail | null): string {
   if (!detail) return "";
 
   if (detail.kind === "preview") {
@@ -439,8 +477,8 @@ function storageActionDetailHtml(detail: StorageActionDetail | null): string {
         <ul class="storage-file-list">${files}</ul>
         ${omitted}
         <div class="storage-detail-actions">
-          <button class="recommended-primary-button" type="button" data-storage-run="${escapeHtml(preview.actionId)}">Run</button>
-          <button class="recommended-secondary-button" type="button" data-storage-cancel>Cancel</button>
+          <button class="recommended-primary-button" type="button" data-mission-run="${escapeHtml(preview.actionId)}">Run</button>
+          <button class="recommended-secondary-button" type="button" data-mission-cancel="${escapeHtml(preview.actionId)}">Cancel</button>
         </div>
       </section>
     `;
@@ -460,8 +498,8 @@ function storageActionDetailHtml(detail: StorageActionDetail | null): string {
           <div><dt>Interruption</dt><dd>${escapeHtml(explanation.interruption)}</dd></div>
         </dl>
         <div class="storage-detail-actions">
-          <button class="recommended-primary-button" type="button" data-storage-preview="${escapeHtml(explanation.actionId)}">Preview</button>
-          <button class="recommended-secondary-button" type="button" data-storage-cancel>Close</button>
+          <button class="recommended-primary-button" type="button" data-mission-preview="${escapeHtml(explanation.actionId)}">Preview</button>
+          <button class="recommended-secondary-button" type="button" data-mission-cancel="${escapeHtml(explanation.actionId)}">Close</button>
         </div>
       </section>
     `;
@@ -481,54 +519,54 @@ function storageActionDetailHtml(detail: StorageActionDetail | null): string {
       <p class="care-task-label">${result.success ? "Complete" : "Needs review"}</p>
       <h3>${result.success ? "Complete" : "Partly complete"}</h3>
       <div class="storage-result-grid">
-        ${storageRecoveryMetric("Storage before", result.storageBefore)}
-        ${storageRecoveryMetric("Storage after", result.storageAfter)}
-        ${storageRecoveryMetric("Recovered", result.recovered)}
-        ${storageRecoveryMetric("Duration", result.duration)}
-        ${storageRecoveryMetric("Actions completed", result.actionsCompleted.toString())}
-        ${storageRecoveryMetric("Skipped items", result.skippedItems.toString())}
-        ${storageRecoveryMetric("Storage health", result.storageHealth)}
+        ${missionMetric("Storage before", result.storageBefore)}
+        ${missionMetric("Storage after", result.storageAfter)}
+        ${missionMetric("Recovered", result.recovered)}
+        ${missionMetric("Duration", result.duration)}
+        ${missionMetric("Actions completed", result.actionsCompleted.toString())}
+        ${missionMetric("Skipped items", result.skippedItems.toString())}
+        ${missionMetric("Storage health", result.storageHealth)}
       </div>
       <p>${result.verified ? "System Pulse measured your free space again after the action." : "System Pulse ran the action, but macOS has not reported a free-space increase yet."}</p>
       ${errors}
       <div class="storage-detail-actions">
-        <button class="recommended-secondary-button" type="button" data-storage-cancel>Close</button>
+        <button class="recommended-secondary-button" type="button" data-mission-cancel="${escapeHtml(result.actionId)}">Close</button>
       </div>
     </section>
   `;
 }
 
-function storageRecoveryPlanHtml(plan: StorageRecoveryPlan): string {
+function missionPlanHtml(plan: PulseMission): string {
   if (!plan.actions.length) {
     return `
       <section class="summary-section care-panel calm-panel">
         <p class="panel-kicker recommended-kicker"><span aria-hidden="true">&#9733;</span> ${escapeHtml(plan.missionTitle)}</p>
-        <h2>${storageActionDetail ? "Storage mission complete" : "No storage mission needed"}</h2>
+        <h2>${missionActionDetail ? `${escapeHtml(plan.category)} mission complete` : `No ${escapeHtml(plan.category.toLowerCase())} mission needed`}</h2>
         ${careMessageHtml()}
         <p class="summary-answer">${escapeHtml(plan.explanation)}</p>
-        ${storageActionDetailHtml(storageActionDetail)}
+        ${missionActionDetailHtml(missionActionDetail)}
       </section>
     `;
   }
 
   const actions = plan.actions
     .map((action) => {
-      const status = storageActionStatus(action);
+      const status = missionActionStatus(action);
       return `
         <div class="storage-action-row">
           <div>
             <span class="mission-timeline-dot" data-status="${escapeHtml(status.toLowerCase())}" aria-hidden="true"></span>
-            <p class="care-task-label">${escapeHtml(storageActionIdLabel(action.id))}</p>
+            <p class="care-task-label">${escapeHtml(missionActionIdLabel(action.id))}</p>
             <strong>${escapeHtml(action.title)}</strong>
             <small>${escapeHtml(status)} · ${escapeHtml(action.confidence)} confidence · ${escapeHtml(action.previewItemCount.toString())} item${action.previewItemCount === 1 ? "" : "s"} · ${escapeHtml(action.estimatedBenefit)} recoverable</small>
             <p class="care-task-detail">${escapeHtml(action.description)}</p>
             <p class="care-task-benefit">${escapeHtml(action.whyRecommended)}</p>
           </div>
           <div class="storage-action-buttons">
-            <button class="recommended-secondary-button" type="button" data-storage-preview="${escapeHtml(action.id)}">Preview</button>
-            <button class="recommended-primary-button" type="button" data-storage-run="${escapeHtml(action.id)}">Run</button>
-            <button class="recommended-secondary-button" type="button" data-storage-later>Later</button>
-            <button class="recommended-secondary-button" type="button" data-storage-explain="${escapeHtml(action.id)}">Explain</button>
+            <button class="recommended-secondary-button" type="button" data-mission-preview="${escapeHtml(action.id)}">Preview</button>
+            <button class="recommended-primary-button" type="button" data-mission-run="${escapeHtml(action.id)}">Run</button>
+            <button class="recommended-secondary-button" type="button" data-mission-later>Later</button>
+            <button class="recommended-secondary-button" type="button" data-mission-explain="${escapeHtml(action.id)}">Explain</button>
           </div>
         </div>
       `;
@@ -542,40 +580,40 @@ function storageRecoveryPlanHtml(plan: StorageRecoveryPlan): string {
       <p class="care-plan-intro">${escapeHtml(plan.summary)}</p>
       ${careMessageHtml()}
       <div class="storage-recovery-metrics">
-        ${storageRecoveryMetric("Status", missionStatus(plan))}
-        ${storageRecoveryMetric("Confidence", plan.confidence)}
-        ${storageRecoveryMetric("Estimated time", plan.estimatedDuration)}
-        ${storageRecoveryMetric("Expected benefit", plan.expectedBenefit)}
-        ${storageRecoveryMetric("Interruption", plan.expectedInterruption)}
+        ${missionMetric("Status", missionStatus(plan))}
+        ${missionMetric("Confidence", plan.confidence)}
+        ${missionMetric("Estimated time", plan.estimatedDuration)}
+        ${missionMetric("Expected benefit", plan.expectedBenefit)}
+        ${missionMetric("Interruption", plan.expectedInterruption)}
       </div>
       <p class="mission-confidence-note">${escapeHtml(plan.confidenceReason)}</p>
-      <div class="storage-action-list" aria-label="Largest recoverable items">
+      <div class="storage-action-list" aria-label="Mission actions">
         ${actions}
       </div>
-      ${storageActionDetailHtml(storageActionDetail)}
+      ${missionActionDetailHtml(missionActionDetail)}
     </section>
   `;
 }
 
-function storageRecoveryLoadingHtml(): string {
+function missionLoadingHtml(): string {
   return `
     <section class="summary-section care-panel attention-panel storage-recovery-panel">
       <p class="panel-kicker recommended-kicker"><span aria-hidden="true">&#9733;</span> Recovery plan</p>
-      <h2>Checking safe storage recovery.</h2>
+      <h2>Checking today's best mission.</h2>
       ${careMessageHtml()}
-      <p class="care-plan-intro">System Pulse is checking Trash, old installers, and conservative app caches. Nothing changes on your Mac.</p>
+      <p class="care-plan-intro">System Pulse is checking the registered missions and ranking the safest useful option. Nothing changes on your Mac.</p>
     </section>
   `;
 }
 
-function storageRecoveryErrorHtml(): string {
+function missionErrorHtml(): string {
   return `
     <section class="summary-section care-panel attention-panel storage-recovery-panel">
       <p class="panel-kicker recommended-kicker"><span aria-hidden="true">&#9733;</span> Recovery plan</p>
-      <h2>Storage recovery could not be checked yet.</h2>
+      <h2>Today's mission could not be checked yet.</h2>
       ${careMessageHtml()}
-      <p class="care-plan-intro">${escapeHtml(storageRecoveryError)}</p>
-      <button class="recommended-secondary-button" type="button" data-storage-retry>Try again</button>
+      <p class="care-plan-intro">${escapeHtml(missionError)}</p>
+      <button class="recommended-secondary-button" type="button" data-mission-retry>Try again</button>
     </section>
   `;
 }
@@ -877,15 +915,15 @@ function quietApplicationButtons(application: ApplicationImpact, includePrimary 
 }
 
 function recommendedCare(pulse: TodayPulse): string {
-  if (!isStorageRecoveryDeferred()) {
-    if (currentStorageRecoveryPlan && (currentStorageRecoveryPlan.actions.length || storageActionDetail)) {
-      return storageRecoveryPlanHtml(currentStorageRecoveryPlan);
+  if (!isMissionDeferred()) {
+    if (currentPulseMission && (currentPulseMission.actions.length || missionActionDetail)) {
+      return missionPlanHtml(currentPulseMission);
     }
-    if (storageRecoveryLoading) {
-      return storageRecoveryLoadingHtml();
+    if (missionLoading) {
+      return missionLoadingHtml();
     }
-    if (storageRecoveryError) {
-      return storageRecoveryErrorHtml();
+    if (missionError) {
+      return missionErrorHtml();
     }
   }
 
@@ -1096,7 +1134,7 @@ function renderToday(pulse: TodayPulse, _refreshing = false): void {
     void loadToday({ keepExisting: true });
   });
   wireCareActions(pulse);
-  void ensureStorageRecoveryPlan();
+  void ensurePulseMission();
 }
 
 function findApplicationByActionId(pulse: TodayPulse, id: string): ApplicationImpact | undefined {
@@ -1174,110 +1212,124 @@ function wireCareActions(pulse: TodayPulse): void {
     });
   });
 
-  document.querySelectorAll<HTMLButtonElement>("[data-storage-preview]").forEach((button) => {
+  document.querySelectorAll<HTMLButtonElement>("[data-mission-preview]").forEach((button) => {
     button.addEventListener("click", () => {
-      const actionId = button.dataset.storagePreview;
-      if (actionId) void previewStorageAction(actionId);
+      const actionId = button.dataset.missionPreview;
+      if (actionId) void previewMissionAction(actionId);
     });
   });
 
-  document.querySelectorAll<HTMLButtonElement>("[data-storage-explain]").forEach((button) => {
+  document.querySelectorAll<HTMLButtonElement>("[data-mission-explain]").forEach((button) => {
     button.addEventListener("click", () => {
-      const actionId = button.dataset.storageExplain;
-      if (actionId) void explainStorageAction(actionId);
+      const actionId = button.dataset.missionExplain;
+      if (actionId) void explainMissionAction(actionId);
     });
   });
 
-  document.querySelectorAll<HTMLButtonElement>("[data-storage-run]").forEach((button) => {
+  document.querySelectorAll<HTMLButtonElement>("[data-mission-run]").forEach((button) => {
     button.addEventListener("click", () => {
-      const actionId = button.dataset.storageRun;
-      if (actionId) void runStorageAction(actionId);
+      const actionId = button.dataset.missionRun;
+      if (actionId) void runMissionAction(actionId);
     });
   });
 
-  document.querySelectorAll<HTMLButtonElement>("[data-storage-later]").forEach((button) => {
+  document.querySelectorAll<HTMLButtonElement>("[data-mission-later]").forEach((button) => {
     button.addEventListener("click", () => {
-      const actionId = button.closest<HTMLElement>(".storage-action-row")?.querySelector<HTMLButtonElement>("[data-storage-run]")?.dataset.storageRun;
-      if (actionId) storageActionStatuses[actionId] = "Deferred";
-      deferStorageRecovery();
-      storageActionDetail = null;
-      careMessage = "Storage mission deferred. It will reappear in 30 minutes.";
+      const actionId = button.closest<HTMLElement>(".storage-action-row")?.querySelector<HTMLButtonElement>("[data-mission-run]")?.dataset.missionRun;
+      if (actionId) missionActionStatuses[actionId] = "Deferred";
+      deferMission();
+      recordMissionTelemetry({
+        missionId: currentPulseMission?.id || "unknown",
+        actionId,
+        event: "Mission deferred",
+        timestamp: new Date().toISOString(),
+      });
+      missionActionDetail = null;
+      careMessage = "Mission deferred. It will reappear in 30 minutes.";
       renderToday(pulse);
     });
   });
 
-  document.querySelectorAll<HTMLButtonElement>("[data-storage-cancel]").forEach((button) => {
+  document.querySelectorAll<HTMLButtonElement>("[data-mission-cancel]").forEach((button) => {
     button.addEventListener("click", () => {
-      storageActionDetail = null;
+      const actionId = button.dataset.missionCancel;
+      recordMissionTelemetry({
+        missionId: currentPulseMission?.id || "unknown",
+        actionId,
+        event: "Mission cancelled",
+        timestamp: new Date().toISOString(),
+      });
+      missionActionDetail = null;
       renderToday(pulse);
     });
   });
 
-  document.querySelectorAll<HTMLButtonElement>("[data-storage-retry]").forEach((button) => {
+  document.querySelectorAll<HTMLButtonElement>("[data-mission-retry]").forEach((button) => {
     button.addEventListener("click", () => {
-      void loadStorageRecoveryPlan(true);
+      void loadPulseMissions(true);
     });
   });
 }
 
-async function ensureStorageRecoveryPlan(): Promise<void> {
+async function ensurePulseMission(): Promise<void> {
   if (currentView !== "today") return;
-  if (isStorageRecoveryDeferred()) return;
-  if (currentStorageRecoveryPlan || storageRecoveryLoading || storageRecoveryError) return;
-  await loadStorageRecoveryPlan();
+  if (isMissionDeferred()) return;
+  if (currentPulseMission || missionLoading || missionError) return;
+  await loadPulseMissions();
 }
 
-async function loadStorageRecoveryPlan(force = false): Promise<void> {
-  if (storageRecoveryLoading) return;
-  if (!force && currentStorageRecoveryPlan) return;
-  if (isStorageRecoveryDeferred()) return;
+async function loadPulseMissions(force = false): Promise<void> {
+  if (missionLoading) return;
+  if (!force && currentPulseMission) return;
+  if (isMissionDeferred()) return;
 
-  storageRecoveryLoading = true;
-  storageRecoveryError = "";
+  missionLoading = true;
+  missionError = "";
   if (currentPulse) renderToday(currentPulse);
 
   try {
-    currentStorageRecoveryPlan = await invoke<StorageRecoveryPlan>("get_storage_recovery_plan");
-    storageActionDetail = null;
+    const snapshot = await invoke<MissionRegistrySnapshot>("get_pulse_missions");
+    currentPulseMission = snapshot.topMission;
+    missionActionDetail = null;
   } catch (error) {
-    currentStorageRecoveryPlan = null;
-    storageRecoveryError = error instanceof Error ? error.message : String(error);
+    currentPulseMission = null;
+    missionError = error instanceof Error ? error.message : String(error);
   } finally {
-    storageRecoveryLoading = false;
+    missionLoading = false;
     if (currentPulse && currentView === "today") renderToday(currentPulse);
   }
 }
 
-async function previewStorageAction(actionId: string): Promise<void> {
+async function previewMissionAction(actionId: string): Promise<void> {
   careMessage = "Preparing preview...";
   if (currentPulse) renderToday(currentPulse);
 
   try {
-    const preview = await invoke<StorageCareActionPreview>("preview_storage_care_action", { actionId });
+    const preview = await invoke<MissionActionPreview>("preview_mission_action", { actionId });
     careMessage = "";
-    storageActionDetail = { kind: "preview", preview };
+    missionActionDetail = { kind: "preview", preview };
   } catch (error) {
     careMessage = error instanceof Error ? error.message : String(error);
   }
   if (currentPulse) renderToday(currentPulse);
 }
 
-async function explainStorageAction(actionId: string): Promise<void> {
+async function explainMissionAction(actionId: string): Promise<void> {
   careMessage = "Preparing explanation...";
   if (currentPulse) renderToday(currentPulse);
 
   try {
-    const explanation = await invoke<StorageCareActionExplanation>("explain_storage_care_action", { actionId });
+    const explanation = await invoke<MissionActionExplanation>("explain_mission_action", { actionId });
     careMessage = "";
-    storageActionDetail = { kind: "explain", explanation };
+    missionActionDetail = { kind: "explain", explanation };
   } catch (error) {
     careMessage = error instanceof Error ? error.message : String(error);
   }
   if (currentPulse) renderToday(currentPulse);
 }
 
-async function runStorageAction(actionId: string): Promise<void> {
-  const action = currentStorageRecoveryPlan?.actions.find((item) => item.id === actionId);
+async function runMissionAction(actionId: string): Promise<void> {
+  const action = currentPulseMission?.actions.find((item) => item.id === actionId);
   const title = action?.title || "this storage action";
   const benefit = action?.estimatedBenefit || "storage space";
   const confirmed = window.confirm(
@@ -1285,22 +1337,38 @@ async function runStorageAction(actionId: string): Promise<void> {
   );
   if (!confirmed) return;
 
-  storageActionStatuses[actionId] = "Running";
+  const startedAt = Date.now();
+  recordMissionTelemetry({
+    missionId: currentPulseMission?.id || "unknown",
+    actionId,
+    event: "Mission started",
+    timestamp: new Date().toISOString(),
+  });
+  missionActionStatuses[actionId] = "Running";
   careMessage = `Running ${title}. Estimated remaining time: under 40 seconds.`;
-  storageActionDetail = null;
+  missionActionDetail = null;
   if (currentPulse) renderToday(currentPulse);
 
   try {
-    const result = await invoke<StorageCareActionRunResult>("run_storage_care_action", { actionId });
-    storageActionStatuses[actionId] = result.success ? "Completed" : "Skipped";
-    storageActionDetail = { kind: "result", result };
+    const result = await invoke<MissionActionRunResult>("run_mission_action", { actionId });
+    missionActionStatuses[actionId] = result.success ? "Completed" : "Skipped";
+    missionActionDetail = { kind: "result", result };
+    recordMissionTelemetry({
+      missionId: currentPulseMission?.id || "unknown",
+      actionId,
+      event: "Mission completed",
+      timestamp: new Date().toISOString(),
+      durationMs: Date.now() - startedAt,
+      verification: result.verification,
+    });
     careMessage = result.success
       ? `${result.title} complete. Recovered ${result.recovered}.`
       : `${result.title} partly completed. Review the details below.`;
-    currentStorageRecoveryPlan = await invoke<StorageRecoveryPlan>("get_storage_recovery_plan");
+    const snapshot = await invoke<MissionRegistrySnapshot>("get_pulse_missions");
+    currentPulseMission = snapshot.topMission;
     await loadToday({ keepExisting: true, quiet: true });
   } catch (error) {
-    storageActionStatuses[actionId] = "Ready";
+    missionActionStatuses[actionId] = "Ready";
     careMessage = error instanceof Error ? error.message : String(error);
     if (currentPulse) renderToday(currentPulse);
   }

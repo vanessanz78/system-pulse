@@ -1,5 +1,23 @@
 # Decision Log
 
+## 2026-07-23 - PulseCore Mission Engine
+
+System Pulse now treats Storage Recovery as the first registered Pulse Mission rather than a one-off feature.
+
+Decisions:
+
+- Introduce `PulseMission`, `MissionAction`, `MissionResult`, Mission lifecycle, Mission Registry, and Mission Planner as reusable contracts.
+- Register Storage Recovery as the reference implementation for future missions.
+- Keep Today visually unchanged while moving it to consume generic mission objects from the registry.
+- Keep Ask Pulse as a routing abstraction over structured mission output, not a chatbot.
+- Record mission start, completion, cancellation, deferral, duration, and verification locally only.
+
+Implications:
+
+- Browser, Developer, Battery, Network, Security, Applications, Updates, and Health missions should extend the Mission Engine instead of creating bespoke UI orchestration.
+- CareActions own execution and verification. PulseCore and the UI should not execute system changes directly.
+- Future missions must use the standard lifecycle states documented in `docs/42-Mission-Engine.md`.
+
 ## 2026-07-23 - AI System Engineer core vision
 
 System Pulse should evolve from a passive monitoring dashboard and calm health companion into an AI System Engineer: a local-first assistant that diagnoses, explains, plans recovery, and executes safe care actions only with user approval.

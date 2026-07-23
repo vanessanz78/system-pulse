@@ -1,4 +1,8 @@
-use serde::Serialize;
+use crate::mission_engine::{
+    CareAction as MissionCareAction, MissionAction, MissionEstimate, MissionExplanation,
+    MissionLifecycle, MissionPreview, MissionPreviewFile, MissionProvider, MissionResult,
+    MissionVerification, PulseMission,
+};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -9,104 +13,37 @@ const CACHE_MIN_AGE_DAYS: u64 = 14;
 const MIN_PLAN_BYTES: u64 = 250 * 1024 * 1024;
 const PREVIEW_LIMIT: usize = 12;
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RecoveryPlan {
-    pub id: String,
-    pub mission_title: String,
-    pub title: String,
-    pub summary: String,
-    pub explanation: String,
-    pub confidence: String,
-    pub confidence_reason: String,
-    pub expected_benefit: String,
-    pub estimated_benefit_bytes: u64,
-    pub expected_interruption: String,
-    pub estimated_duration: String,
-    pub status: String,
-    pub actions: Vec<CareActionSummary>,
-}
+const STORAGE_MISSION_ID: &str = "storage-recovery";
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CareActionSummary {
-    pub id: String,
-    pub title: String,
-    pub description: String,
-    pub confidence: String,
-    pub confidence_reason: String,
-    pub why_recommended: String,
-    pub estimated_benefit: String,
-    pub estimated_benefit_bytes: u64,
-    pub interruption: String,
-    pub risk: String,
-    pub preview_item_count: usize,
-    pub status: String,
-}
+pub type RecoveryPlan = PulseMission;
+pub type CareActionSummary = MissionAction;
+pub type CareActionPreview = MissionPreview;
+pub type PreviewFile = MissionPreviewFile;
+pub type CareActionExplanation = MissionExplanation;
+pub type CareActionRunResult = MissionResult;
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CareActionPreview {
-    pub action_id: String,
-    pub title: String,
-    pub what_i_found: String,
-    pub why_selected: String,
-    pub confidence: String,
-    pub risk: String,
-    pub interruption: String,
-    pub estimated_recovery: String,
-    pub estimated_recovery_bytes: u64,
-    pub files: Vec<PreviewFile>,
-    pub omitted_count: usize,
-}
+pub struct StorageMissionProvider;
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PreviewFile {
-    pub name: String,
-    pub item_kind: String,
-    pub size: String,
-    pub path: String,
-    pub reason: String,
-    pub confidence: String,
-    pub expected_benefit: String,
-    pub interruption: String,
-}
+impl MissionProvider for StorageMissionProvider {
+    fn mission_id(&self) -> &'static str {
+        STORAGE_MISSION_ID
+    }
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CareActionExplanation {
-    pub action_id: String,
-    pub title: String,
-    pub reason: String,
-    pub confidence: String,
-    pub confidence_reason: String,
-    pub expected_benefit: String,
-    pub risk: String,
-    pub interruption: String,
-}
+    fn load(&self) -> Result<Option<PulseMission>, String> {
+        Ok(Some(plan()?))
+    }
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CareActionRunResult {
-    pub action_id: String,
-    pub title: String,
-    pub success: bool,
-    pub storage_before: String,
-    pub storage_before_bytes: u64,
-    pub storage_after: String,
-    pub storage_after_bytes: u64,
-    pub recovered: String,
-    pub recovered_bytes: u64,
-    pub current_free_space: String,
-    pub current_free_space_bytes: u64,
-    pub storage_health: String,
-    pub duration: String,
-    pub duration_seconds: u64,
-    pub actions_completed: usize,
-    pub skipped_items: usize,
-    pub verified: bool,
-    pub errors: Vec<String>,
+    fn preview(&self, action_id: &str) -> Result<MissionPreview, String> {
+        preview(action_id)
+    }
+
+    fn explain(&self, action_id: &str) -> Result<MissionExplanation, String> {
+        explain(action_id)
+    }
+
+    fn execute(&self, action_id: &str) -> Result<MissionResult, String> {
+        run(action_id)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -134,7 +71,7 @@ struct ActionEstimate {
     items: Vec<RecoveryItem>,
 }
 
-trait CareAction {
+trait StorageCareAction {
     fn action_id(&self) -> &'static str;
     fn title(&self) -> &'static str;
     fn preview(&self) -> Result<CareActionPreview, String>;
@@ -157,7 +94,8 @@ pub fn plan() -> Result<RecoveryPlan, String> {
 
     if estimated_benefit_bytes < MIN_PLAN_BYTES {
         return Ok(RecoveryPlan {
-            id: "storage-recovery-v2".to_string(),
+            id: STORAGE_MISSION_ID.to_string(),
+            category: "Storage".to_string(),
             mission_title: "Storage Mission".to_string(),
             title: "Storage looks okay right now.".to_string(),
             summary: "I checked the safest places first and did not find enough recoverable space to need a mission.".to_string(),
@@ -166,11 +104,15 @@ pub fn plan() -> Result<RecoveryPlan, String> {
                     .to_string(),
             confidence: "High".to_string(),
             confidence_reason: "These checks only inspect well-known storage locations and do not touch personal documents.".to_string(),
+            status: MissionLifecycle::Ready.as_str().to_string(),
+            priority: 10,
+            estimated_benefit: format_bytes(estimated_benefit_bytes),
             expected_benefit: format_bytes(estimated_benefit_bytes),
             estimated_benefit_bytes,
             expected_interruption: "None".to_string(),
             estimated_duration: "No care moment needed".to_string(),
-            status: "Ready".to_string(),
+            diagnosis: "The safest storage locations do not currently contain enough recoverable space to need attention.".to_string(),
+            recovery_plan: "No care action is useful right now.".to_string(),
             actions: Vec::new(),
         });
     }
@@ -178,7 +120,8 @@ pub fn plan() -> Result<RecoveryPlan, String> {
     let (confidence, confidence_reason) = plan_confidence(&actions);
 
     Ok(RecoveryPlan {
-        id: "storage-recovery-v2".to_string(),
+        id: STORAGE_MISSION_ID.to_string(),
+        category: "Storage".to_string(),
         mission_title: "Storage Mission".to_string(),
         title: format!(
             "I found {} that appears safe to recover.",
@@ -190,6 +133,9 @@ pub fn plan() -> Result<RecoveryPlan, String> {
                 .to_string(),
         confidence,
         confidence_reason,
+        status: MissionLifecycle::Ready.as_str().to_string(),
+        priority: 80,
+        estimated_benefit: format_bytes(estimated_benefit_bytes),
         expected_benefit: format!(
             "Recover {} without affecting personal files.",
             format_bytes(estimated_benefit_bytes)
@@ -197,7 +143,8 @@ pub fn plan() -> Result<RecoveryPlan, String> {
         estimated_benefit_bytes,
         expected_interruption: "None".to_string(),
         estimated_duration: "About 40 seconds".to_string(),
-        status: "Ready".to_string(),
+        diagnosis: "Recoverable storage exists in low-risk locations: Trash, old downloaded installers, or rebuildable app caches.".to_string(),
+        recovery_plan: "Preview the largest safe recovery action first, then run only the action you approve.".to_string(),
         actions,
     })
 }
@@ -222,8 +169,8 @@ fn collect_estimates() -> Result<Vec<ActionEstimate>, String> {
     ])
 }
 
-fn action_for_id(action_id: &str) -> Result<Box<dyn CareAction>, String> {
-    match action_id {
+fn action_for_id(action_id: &str) -> Result<Box<dyn StorageCareAction>, String> {
+    match storage_action_id(action_id) {
         "empty-trash" => Ok(Box::new(EmptyTrashAction)),
         "delete-downloaded-installers" => Ok(Box::new(DeleteDownloadedInstallersAction)),
         "clear-obsolete-caches" => Ok(Box::new(ClearObsoleteCachesAction)),
@@ -235,7 +182,7 @@ struct EmptyTrashAction;
 struct DeleteDownloadedInstallersAction;
 struct ClearObsoleteCachesAction;
 
-impl CareAction for EmptyTrashAction {
+impl StorageCareAction for EmptyTrashAction {
     fn action_id(&self) -> &'static str {
         "empty-trash"
     }
@@ -274,7 +221,7 @@ impl CareAction for EmptyTrashAction {
 
 }
 
-impl CareAction for DeleteDownloadedInstallersAction {
+impl StorageCareAction for DeleteDownloadedInstallersAction {
     fn action_id(&self) -> &'static str {
         "delete-downloaded-installers"
     }
@@ -314,7 +261,7 @@ impl CareAction for DeleteDownloadedInstallersAction {
 
 }
 
-impl CareAction for ClearObsoleteCachesAction {
+impl StorageCareAction for ClearObsoleteCachesAction {
     fn action_id(&self) -> &'static str {
         "clear-obsolete-caches"
     }
@@ -354,10 +301,71 @@ impl CareAction for ClearObsoleteCachesAction {
 
 }
 
+macro_rules! impl_mission_care_action {
+    ($action:ty, $confidence:expr, $interruption:expr) => {
+        impl MissionCareAction for $action {
+            fn id(&self) -> &'static str {
+                StorageCareAction::action_id(self)
+            }
+
+            fn title(&self) -> &'static str {
+                StorageCareAction::title(self)
+            }
+
+            fn confidence(&self) -> &'static str {
+                $confidence
+            }
+
+            fn interruption(&self) -> &'static str {
+                $interruption
+            }
+
+            fn preview(&self) -> Result<MissionPreview, String> {
+                StorageCareAction::preview(self)
+            }
+
+            fn explain(&self) -> Result<MissionExplanation, String> {
+                StorageCareAction::explain(self)
+            }
+
+            fn estimate(&self) -> Result<MissionEstimate, String> {
+                let estimate = StorageCareAction::estimate(self)?;
+                Ok(MissionEstimate {
+                    action_id: mission_action_id(estimate.action_id),
+                    title: estimate.title.to_string(),
+                    estimated_benefit: format_bytes(estimate_total_bytes(&estimate)),
+                    estimated_benefit_bytes: estimate_total_bytes(&estimate),
+                    confidence: estimate.confidence.to_string(),
+                    interruption: estimate.interruption.to_string(),
+                })
+            }
+
+            fn execute(&self) -> Result<MissionResult, String> {
+                StorageCareAction::execute(self)
+            }
+
+            fn verify(&self, result: &MissionResult) -> MissionVerification {
+                MissionVerification {
+                    verified: result.verified,
+                    verification: result.verification.clone(),
+                }
+            }
+        }
+    };
+}
+
+impl_mission_care_action!(EmptyTrashAction, "High", "None");
+impl_mission_care_action!(DeleteDownloadedInstallersAction, "High", "None");
+impl_mission_care_action!(
+    ClearObsoleteCachesAction,
+    "Medium",
+    "The application may load slightly slower next launch."
+);
+
 fn action_summary(estimate: &ActionEstimate) -> CareActionSummary {
     let estimated_benefit_bytes = estimate_total_bytes(estimate);
     CareActionSummary {
-        id: estimate.action_id.to_string(),
+        id: mission_action_id(estimate.action_id),
         title: estimate.title.to_string(),
         description: estimate.description.to_string(),
         confidence: estimate.confidence.to_string(),
@@ -368,7 +376,7 @@ fn action_summary(estimate: &ActionEstimate) -> CareActionSummary {
         interruption: estimate.interruption.to_string(),
         risk: estimate.risk.to_string(),
         preview_item_count: estimate.items.len(),
-        status: "Ready".to_string(),
+        status: MissionLifecycle::Ready.as_str().to_string(),
     }
 }
 
@@ -447,7 +455,7 @@ fn preview_from_estimate(mut estimate: ActionEstimate) -> Result<CareActionPrevi
         .collect::<Vec<_>>();
 
     Ok(CareActionPreview {
-        action_id: estimate.action_id.to_string(),
+        action_id: mission_action_id(estimate.action_id),
         title: estimate.title.to_string(),
         what_i_found: preview_found_label(&estimate),
         why_selected: estimate.reason.to_string(),
@@ -463,7 +471,7 @@ fn preview_from_estimate(mut estimate: ActionEstimate) -> Result<CareActionPrevi
 
 fn explanation_from_estimate(estimate: ActionEstimate) -> Result<CareActionExplanation, String> {
     Ok(CareActionExplanation {
-        action_id: estimate.action_id.to_string(),
+        action_id: mission_action_id(estimate.action_id),
         title: estimate.title.to_string(),
         reason: estimate.reason.to_string(),
         confidence: estimate.confidence.to_string(),
@@ -502,15 +510,20 @@ fn execute_estimate(estimate: ActionEstimate) -> Result<CareActionRunResult, Str
     let duration_seconds = started_at.elapsed().as_secs();
 
     Ok(CareActionRunResult {
-        action_id: estimate.action_id.to_string(),
+        action_id: mission_action_id(estimate.action_id),
         title: estimate.title.to_string(),
         success: errors.is_empty(),
+        completed: errors.is_empty(),
+        skipped: estimate.items.is_empty(),
+        failed: !errors.is_empty(),
         storage_before: format_bytes(before_free_bytes),
         storage_before_bytes: before_free_bytes,
         storage_after: format_bytes(current_free_space_bytes),
         storage_after_bytes: current_free_space_bytes,
         recovered: format_bytes(recovered_bytes),
         recovered_bytes,
+        recovered_space: format_bytes(recovered_bytes),
+        recovered_space_bytes: recovered_bytes,
         current_free_space: format_bytes(current_free_space_bytes),
         current_free_space_bytes,
         storage_health: storage_health_label(current_free_space_bytes),
@@ -519,8 +532,21 @@ fn execute_estimate(estimate: ActionEstimate) -> Result<CareActionRunResult, Str
         actions_completed,
         skipped_items: errors.len(),
         verified,
+        verification: if verified {
+            "System Pulse measured your free space again after the action.".to_string()
+        } else {
+            "System Pulse ran the action, but macOS has not reported a free-space increase yet.".to_string()
+        },
         errors,
     })
+}
+
+fn mission_action_id(action_id: &str) -> String {
+    format!("{STORAGE_MISSION_ID}:{action_id}")
+}
+
+fn storage_action_id(action_id: &str) -> &str {
+    action_id.strip_prefix("storage-recovery:").unwrap_or(action_id)
 }
 
 fn verify_free_space(before_free_bytes: u64, removed_bytes: u64) -> Result<(u64, bool), String> {
