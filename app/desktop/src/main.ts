@@ -413,12 +413,141 @@ function missionMetric(label: string, value: string): string {
   `;
 }
 
+function missionActionLocalId(actionId: string): string {
+  return actionId.split(":").pop() || actionId;
+}
+
 function missionActionIdLabel(actionId: string): string {
-  const localId = actionId.split(":").pop() || actionId;
+  const localId = missionActionLocalId(actionId);
   if (localId === "empty-trash") return "Trash";
-  if (localId === "delete-downloaded-installers") return "Downloaded installers";
-  if (localId === "clear-obsolete-caches") return "Application caches";
+  if (localId === "delete-downloaded-installers") return "Old installers";
+  if (localId === "clear-obsolete-caches") return "Temporary files";
   return "Mission";
+}
+
+function missionActionTitle(action: MissionAction): string {
+  const localId = missionActionLocalId(action.id);
+  if (localId === "delete-downloaded-installers") return "Remove old installers";
+  if (localId === "clear-obsolete-caches") return "Clean temporary files";
+  return action.title;
+}
+
+function missionActionButtonLabel(action: MissionAction): string {
+  const localId = missionActionLocalId(action.id);
+  if (missionActionStatus(action) === "Running") return "Cleaning...";
+  if (missionActionStatus(action) === "Completed") return "Done";
+  if (localId === "empty-trash") return "Empty now";
+  if (localId === "delete-downloaded-installers") return "Remove now";
+  return "Clean now";
+}
+
+function missionActionWhatWillHappen(action: MissionAction): string {
+  const localId = missionActionLocalId(action.id);
+  if (localId === "empty-trash") return "Items already in Trash will be permanently removed.";
+  if (localId === "delete-downloaded-installers") return "Old installer files in Downloads will be removed. Installed apps and documents stay where they are.";
+  if (localId === "clear-obsolete-caches") return "Temporary files from applications that no longer need them will be removed.";
+  return action.description;
+}
+
+function missionActionSummary(action: MissionAction): string {
+  const localId = missionActionLocalId(action.id);
+  if (localId === "empty-trash") return "Items already placed in Trash.";
+  if (localId === "delete-downloaded-installers") return "Old app installers that are usually only needed once.";
+  if (localId === "clear-obsolete-caches") return "Temporary files your applications can recreate automatically.";
+  return action.description;
+}
+
+function safetyLabel(confidence: string): string {
+  const normalized = confidence.toLowerCase();
+  if (normalized.includes("high")) return "Very safe";
+  if (normalized.includes("medium")) return "Safe";
+  return "Needs review";
+}
+
+function safetyClass(confidence: string): string {
+  const normalized = confidence.toLowerCase();
+  if (normalized.includes("high")) return "very-safe";
+  if (normalized.includes("medium")) return "safe";
+  return "needs-review";
+}
+
+function safetySentence(confidence: string): string {
+  const label = safetyLabel(confidence);
+  if (label === "Very safe") return "These files are already discarded or can be removed without touching personal work.";
+  if (label === "Safe") return "Nothing personal will be removed. Some apps may rebuild files later if they need them.";
+  return "Review the details before cleaning.";
+}
+
+function actionNotice(action: MissionAction): string {
+  const localId = missionActionLocalId(action.id);
+  if (localId === "clear-obsolete-caches") {
+    return "Applications may open slightly slower the first time after cleaning.";
+  }
+  return action.interruption === "None" ? "Nothing should interrupt your work." : action.interruption;
+}
+
+function isMissionActionExpanded(actionId: string): boolean {
+  return Boolean(
+    missionActionDetail &&
+      (missionActionDetail.kind === "preview"
+        ? missionActionDetail.preview.actionId === actionId
+        : missionActionDetail.kind === "explain"
+          ? missionActionDetail.explanation.actionId === actionId
+      : missionActionDetail.result.actionId === actionId),
+  );
+}
+
+function missionPreviewFilesHtml(preview: MissionActionPreview): string {
+  const friendlyFiles = preview.files.length
+    ? preview.files
+        .map(
+          (file) => `
+            <li>
+              <span>
+                <strong>${escapeHtml(file.name)}</strong>
+                <small>${escapeHtml(file.size)}</small>
+              </span>
+              <span class="storage-file-plain">${escapeHtml(file.reason)}</span>
+            </li>
+          `,
+        )
+        .join("")
+    : `<li><span><strong>No files found for this action.</strong></span></li>`;
+  const technicalFiles = preview.files.length
+    ? preview.files
+        .map(
+          (file) => `
+            <li>
+              <span>
+                <small>${escapeHtml(file.itemKind)}</small>
+                <strong>${escapeHtml(file.name)}</strong>
+                <small>${escapeHtml(file.path)}</small>
+                <span class="storage-file-reason">${escapeHtml(file.reason)}</span>
+              </span>
+              <em>
+                ${escapeHtml(file.size)}
+                <small>${escapeHtml(safetyLabel(file.confidence))}</small>
+              </em>
+            </li>
+          `,
+        )
+        .join("")
+    : `<li><span><strong>No technical file details available.</strong></span></li>`;
+  const omitted = preview.omittedCount
+    ? `<p class="storage-preview-note">There are ${preview.omittedCount} more item${preview.omittedCount === 1 ? "" : "s"} not shown here.</p>`
+    : "";
+
+  return `
+    <details class="storage-disclosure">
+      <summary>Files affected</summary>
+      <ul class="storage-file-list friendly-file-list">${friendlyFiles}</ul>
+      ${omitted}
+    </details>
+    <details class="storage-disclosure">
+      <summary>Show technical details</summary>
+      <ul class="storage-file-list">${technicalFiles}</ul>
+    </details>
+  `;
 }
 
 function missionActionStatus(action: MissionAction): string {
@@ -433,53 +562,26 @@ function missionStatus(plan: PulseMission): string {
   return plan.status || "Ready";
 }
 
-function missionActionDetailHtml(detail: MissionActionDetail | null): string {
+function missionActionDetailHtml(detail: MissionActionDetail | null, action?: MissionAction): string {
   if (!detail) return "";
 
   if (detail.kind === "preview") {
     const preview = detail.preview;
-    const files = preview.files.length
-      ? preview.files
-          .map(
-            (file) => `
-              <li>
-                <span>
-                  <small>${escapeHtml(file.itemKind)}</small>
-                  <strong>${escapeHtml(file.name)}</strong>
-                  <small>${escapeHtml(file.path)}</small>
-                  <span class="storage-file-reason">${escapeHtml(file.reason)}</span>
-                </span>
-                <em>
-                  ${escapeHtml(file.size)}
-                  <small>${escapeHtml(file.confidence)} confidence</small>
-                </em>
-              </li>
-            `,
-          )
-          .join("")
-      : `<li><span><strong>No files found for this action.</strong></span></li>`;
-    const omitted = preview.omittedCount
-      ? `<p class="storage-preview-note">And ${preview.omittedCount} more item${preview.omittedCount === 1 ? "" : "s"}.</p>`
-      : "";
+    const notice = action ? actionNotice(action) : preview.interruption;
 
     return `
       <section class="storage-action-detail" aria-label="${escapeHtml(preview.title)} preview">
-        <p class="care-task-label">Preview</p>
-        <h3>${escapeHtml(preview.title)}</h3>
-        <p>${escapeHtml(preview.whatIFound)}</p>
-        <dl class="storage-explain-list compact-explain-list">
-          <div><dt>Why I selected it</dt><dd>${escapeHtml(preview.whySelected)}</dd></div>
-          <div><dt>Confidence</dt><dd>${escapeHtml(preview.confidence)}</dd></div>
-          <div><dt>Estimated recovery</dt><dd>${escapeHtml(preview.estimatedRecovery)}</dd></div>
-          <div><dt>Risk</dt><dd>${escapeHtml(preview.risk)}</dd></div>
-          <div><dt>Expected interruption</dt><dd>${escapeHtml(preview.interruption)}</dd></div>
+        <p class="care-task-label">What I'm going to clean</p>
+        <h3>${escapeHtml(action ? missionActionSummary(action) : preview.whatIFound)}</h3>
+        <p>Nothing personal will be removed.</p>
+        <dl class="storage-explain-list friendly-explain-list">
+          <div><dt>Why this is recommended</dt><dd>${escapeHtml(preview.whySelected)}</dd></div>
+          <div><dt>What will happen</dt><dd>${escapeHtml(action ? missionActionWhatWillHappen(action) : preview.whatIFound)}</dd></div>
+          <div><dt>You'll recover</dt><dd>${escapeHtml(preview.estimatedRecovery)}</dd></div>
+          <div><dt>Safety</dt><dd><span class="safety-pill ${escapeHtml(safetyClass(preview.confidence))}">${escapeHtml(safetyLabel(preview.confidence))}</span> ${escapeHtml(safetySentence(preview.confidence))}</dd></div>
+          <div><dt>What you'll notice</dt><dd>${escapeHtml(notice)}</dd></div>
         </dl>
-        <ul class="storage-file-list">${files}</ul>
-        ${omitted}
-        <div class="storage-detail-actions">
-          <button class="recommended-primary-button" type="button" data-mission-run="${escapeHtml(preview.actionId)}">Run</button>
-          <button class="recommended-secondary-button" type="button" data-mission-cancel="${escapeHtml(preview.actionId)}">Cancel</button>
-        </div>
+        ${missionPreviewFilesHtml(preview)}
       </section>
     `;
   }
@@ -488,19 +590,15 @@ function missionActionDetailHtml(detail: MissionActionDetail | null): string {
     const explanation = detail.explanation;
     return `
       <section class="storage-action-detail" aria-label="${escapeHtml(explanation.title)} explanation">
-        <p class="care-task-label">Explain</p>
+        <p class="care-task-label">Why?</p>
         <h3>${escapeHtml(explanation.title)}</h3>
         <dl class="storage-explain-list">
           <div><dt>Reason</dt><dd>${escapeHtml(explanation.reason)}</dd></div>
-          <div><dt>Confidence</dt><dd>${escapeHtml(explanation.confidence)}. ${escapeHtml(explanation.confidenceReason)}</dd></div>
-          <div><dt>Expected benefit</dt><dd>${escapeHtml(explanation.expectedBenefit)}</dd></div>
+          <div><dt>Safety</dt><dd><span class="safety-pill ${escapeHtml(safetyClass(explanation.confidence))}">${escapeHtml(safetyLabel(explanation.confidence))}</span> ${escapeHtml(explanation.confidenceReason)}</dd></div>
+          <div><dt>You'll recover</dt><dd>${escapeHtml(explanation.expectedBenefit)}</dd></div>
           <div><dt>Risk</dt><dd>${escapeHtml(explanation.risk)}</dd></div>
-          <div><dt>Interruption</dt><dd>${escapeHtml(explanation.interruption)}</dd></div>
+          <div><dt>What you'll notice</dt><dd>${escapeHtml(explanation.interruption)}</dd></div>
         </dl>
-        <div class="storage-detail-actions">
-          <button class="recommended-primary-button" type="button" data-mission-preview="${escapeHtml(explanation.actionId)}">Preview</button>
-          <button class="recommended-secondary-button" type="button" data-mission-cancel="${escapeHtml(explanation.actionId)}">Close</button>
-        </div>
       </section>
     `;
   }
@@ -516,22 +614,26 @@ function missionActionDetailHtml(detail: MissionActionDetail | null): string {
 
   return `
     <section class="storage-action-detail storage-result" aria-label="${escapeHtml(result.title)} result">
-      <p class="care-task-label">${result.success ? "Complete" : "Needs review"}</p>
-      <h3>${result.success ? "Complete" : "Partly complete"}</h3>
+      <p class="care-task-label">${result.success ? "Done" : "Needs review"}</p>
+      <h3>${result.success ? `&#10003; ${escapeHtml(result.title)} complete.` : "Partly complete"}</h3>
       <div class="storage-result-grid">
-        ${missionMetric("Storage before", result.storageBefore)}
-        ${missionMetric("Storage after", result.storageAfter)}
         ${missionMetric("Recovered", result.recovered)}
-        ${missionMetric("Duration", result.duration)}
-        ${missionMetric("Actions completed", result.actionsCompleted.toString())}
-        ${missionMetric("Skipped items", result.skippedItems.toString())}
+        ${missionMetric("Available now", result.currentFreeSpace)}
         ${missionMetric("Storage health", result.storageHealth)}
       </div>
-      <p>${result.verified ? "System Pulse measured your free space again after the action." : "System Pulse ran the action, but macOS has not reported a free-space increase yet."}</p>
+      <p>${result.verified ? `Your Mac now has ${escapeHtml(result.currentFreeSpace)} available.` : "The action ran, but macOS has not reported the extra free space yet."}</p>
+      <details class="storage-disclosure">
+        <summary>Show technical details</summary>
+        <div class="storage-result-grid technical-result-grid">
+          ${missionMetric("Storage before", result.storageBefore)}
+          ${missionMetric("Storage after", result.storageAfter)}
+          ${missionMetric("Duration", result.duration)}
+          ${missionMetric("Items cleaned", result.actionsCompleted.toString())}
+          ${missionMetric("Skipped items", result.skippedItems.toString())}
+          ${missionMetric("Verification", result.verified ? "Passed" : "Pending")}
+        </div>
+      </details>
       ${errors}
-      <div class="storage-detail-actions">
-        <button class="recommended-secondary-button" type="button" data-mission-cancel="${escapeHtml(result.actionId)}">Close</button>
-      </div>
     </section>
   `;
 }
@@ -552,26 +654,54 @@ function missionPlanHtml(plan: PulseMission): string {
   const actions = plan.actions
     .map((action) => {
       const status = missionActionStatus(action);
+      const expanded = isMissionActionExpanded(action.id);
+      const running = status === "Running";
+      const completed = status === "Completed";
+      const detail =
+        expanded && missionActionDetail?.kind !== "result"
+          ? missionActionDetailHtml(missionActionDetail, action)
+          : "";
       return `
-        <div class="storage-action-row">
-          <div>
+        <div class="storage-action-row ${expanded ? "is-expanded" : ""}" data-mission-card="${escapeHtml(action.id)}">
+          <div class="storage-action-copy">
             <span class="mission-timeline-dot" data-status="${escapeHtml(status.toLowerCase())}" aria-hidden="true"></span>
             <p class="care-task-label">${escapeHtml(missionActionIdLabel(action.id))}</p>
-            <strong>${escapeHtml(action.title)}</strong>
-            <small>${escapeHtml(status)} · ${escapeHtml(action.confidence)} confidence · ${escapeHtml(action.previewItemCount.toString())} item${action.previewItemCount === 1 ? "" : "s"} · ${escapeHtml(action.estimatedBenefit)} recoverable</small>
-            <p class="care-task-detail">${escapeHtml(action.description)}</p>
-            <p class="care-task-benefit">${escapeHtml(action.whyRecommended)}</p>
+            <strong>${escapeHtml(missionActionTitle(action))}</strong>
+            <p class="storage-action-subtitle">Recover ${escapeHtml(action.estimatedBenefit)}</p>
+            <p class="safety-line ${escapeHtml(safetyClass(action.confidence))}">
+              <span aria-hidden="true"></span>
+              <strong>${escapeHtml(safetyLabel(action.confidence))}</strong>
+              <small>${escapeHtml(safetySentence(action.confidence))}</small>
+            </p>
+            <p class="care-task-detail">${escapeHtml(missionActionSummary(action))}</p>
+            ${running ? `<div class="storage-progress" aria-label="Cleaning"><span></span></div>` : ""}
           </div>
           <div class="storage-action-buttons">
-            <button class="recommended-secondary-button" type="button" data-mission-preview="${escapeHtml(action.id)}">Preview</button>
-            <button class="recommended-primary-button" type="button" data-mission-run="${escapeHtml(action.id)}">Run</button>
-            <button class="recommended-secondary-button" type="button" data-mission-later>Later</button>
-            <button class="recommended-secondary-button" type="button" data-mission-explain="${escapeHtml(action.id)}">Explain</button>
+            <button
+              class="recommended-primary-button"
+              type="button"
+              data-mission-run="${escapeHtml(action.id)}"
+              ${running || completed ? "disabled" : ""}
+            >
+              ${escapeHtml(missionActionButtonLabel(action))}
+            </button>
+            <button
+              class="storage-disclosure-button"
+              type="button"
+              data-mission-toggle-details="${escapeHtml(action.id)}"
+              aria-expanded="${expanded ? "true" : "false"}"
+              aria-label="${expanded ? "Hide details" : "Show details"} for ${escapeHtml(missionActionTitle(action))}"
+            >
+              ${expanded ? "Hide details" : "Details"}
+            </button>
           </div>
+          ${detail}
         </div>
       `;
     })
     .join("");
+
+  const resultDetail = missionActionDetail?.kind === "result" ? missionActionDetailHtml(missionActionDetail) : "";
 
   return `
     <section class="summary-section care-panel attention-panel storage-recovery-panel">
@@ -581,16 +711,16 @@ function missionPlanHtml(plan: PulseMission): string {
       ${careMessageHtml()}
       <div class="storage-recovery-metrics">
         ${missionMetric("Status", missionStatus(plan))}
-        ${missionMetric("Confidence", plan.confidence)}
+        ${missionMetric("Safety", safetyLabel(plan.confidence))}
         ${missionMetric("Estimated time", plan.estimatedDuration)}
-        ${missionMetric("Expected benefit", plan.expectedBenefit)}
-        ${missionMetric("Interruption", plan.expectedInterruption)}
+        ${missionMetric("You'll recover", plan.expectedBenefit)}
+        ${missionMetric("What you'll notice", plan.expectedInterruption)}
       </div>
       <p class="mission-confidence-note">${escapeHtml(plan.confidenceReason)}</p>
       <div class="storage-action-list" aria-label="Mission actions">
         ${actions}
       </div>
-      ${missionActionDetailHtml(missionActionDetail)}
+      ${resultDetail}
     </section>
   `;
 }
@@ -700,6 +830,10 @@ function todayStatusCard(label: string, icon: string, domain: DomainHealth, heal
         <span>${escapeHtml(domain.metricLabel || domain.value)}</span>
         ${domain.metricPercent ? `<strong>${escapeHtml(domain.metricPercent)}</strong>` : ""}
       </p>
+      <details class="status-why">
+        <summary>Why?</summary>
+        <p>${escapeHtml(detail)}</p>
+      </details>
     </section>
   `;
 }
@@ -718,7 +852,7 @@ function todayStatusCards(pulse: TodayPulse): string {
 function applicationUsageItems(pulse: TodayPulse): KnowledgeItem[] {
   const items = pulse.topApplications.slice(0, 6).map((application) => ({
     label: application.name,
-    metric: `${application.memoryDisplay} RAM · ${application.cpuDisplay} CPU`,
+    metric: application.detail || application.impactLabel || "Running normally.",
   }));
   return items.length ? items : [{ label: "No non-browser application is standing out." }];
 }
@@ -728,8 +862,10 @@ function applicationUsageList(pulse: TodayPulse): string {
     .map(
       (item) => `
         <li>
-          <span>${escapeHtml(item.label)}</span>
-          ${item.metric ? `<strong>${escapeHtml(item.metric)}</strong>` : ""}
+          <span>
+            <strong>${escapeHtml(item.label)}</strong>
+            ${item.metric ? `<small>${escapeHtml(item.metric)}</small>` : ""}
+          </span>
         </li>
       `,
     )
@@ -806,7 +942,7 @@ function browserCareTask(domain: DomainHealth): string {
         <strong>${escapeHtml(browserName)}</strong>
         <small>${escapeHtml(domain.metricLabel || domain.value)}</small>
         <p class="care-task-detail">${escapeHtml(domain.detail)}</p>
-        <p class="care-task-benefit">Expected interruption about 20 seconds · expected benefit +35 minutes</p>
+        <p class="care-task-benefit">What you'll notice: about 20 seconds. Expected benefit: +35 minutes.</p>
       </div>
       <div class="care-task-actions">
         <button
@@ -1233,6 +1369,23 @@ function wireCareActions(pulse: TodayPulse): void {
     });
   });
 
+  document.querySelectorAll<HTMLButtonElement>("[data-mission-toggle-details]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const actionId = button.dataset.missionToggleDetails;
+      if (actionId) void toggleMissionActionDetails(actionId);
+    });
+  });
+
+  document.querySelectorAll<HTMLElement>("[data-mission-card]").forEach((card) => {
+    card.addEventListener("click", (event) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("button, a, details, summary")) return;
+      const actionId = card.dataset.missionCard;
+      if (actionId) void toggleMissionActionDetails(actionId);
+    });
+  });
+
   document.querySelectorAll<HTMLButtonElement>("[data-mission-later]").forEach((button) => {
     button.addEventListener("click", () => {
       const actionId = button.closest<HTMLElement>(".storage-action-row")?.querySelector<HTMLButtonElement>("[data-mission-run]")?.dataset.missionRun;
@@ -1301,7 +1454,7 @@ async function loadPulseMissions(force = false): Promise<void> {
 }
 
 async function previewMissionAction(actionId: string): Promise<void> {
-  careMessage = "Preparing preview...";
+  careMessage = "Checking what would be cleaned...";
   if (currentPulse) renderToday(currentPulse);
 
   try {
@@ -1312,6 +1465,15 @@ async function previewMissionAction(actionId: string): Promise<void> {
     careMessage = error instanceof Error ? error.message : String(error);
   }
   if (currentPulse) renderToday(currentPulse);
+}
+
+async function toggleMissionActionDetails(actionId: string): Promise<void> {
+  if (isMissionActionExpanded(actionId) && missionActionDetail?.kind === "preview") {
+    missionActionDetail = null;
+    if (currentPulse) renderToday(currentPulse);
+    return;
+  }
+  await previewMissionAction(actionId);
 }
 
 async function explainMissionAction(actionId: string): Promise<void> {
@@ -1330,12 +1492,7 @@ async function explainMissionAction(actionId: string): Promise<void> {
 
 async function runMissionAction(actionId: string): Promise<void> {
   const action = currentPulseMission?.actions.find((item) => item.id === actionId);
-  const title = action?.title || "this storage action";
-  const benefit = action?.estimatedBenefit || "storage space";
-  const confirmed = window.confirm(
-    `System Pulse will run ${title} and try to recover ${benefit}. Continue?`,
-  );
-  if (!confirmed) return;
+  const title = action ? missionActionTitle(action) : "this storage action";
 
   const startedAt = Date.now();
   recordMissionTelemetry({
@@ -1345,7 +1502,7 @@ async function runMissionAction(actionId: string): Promise<void> {
     timestamp: new Date().toISOString(),
   });
   missionActionStatuses[actionId] = "Running";
-  careMessage = `Running ${title}. Estimated remaining time: under 40 seconds.`;
+  careMessage = `${title} is cleaning now.`;
   missionActionDetail = null;
   if (currentPulse) renderToday(currentPulse);
 
