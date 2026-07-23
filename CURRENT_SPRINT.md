@@ -61,6 +61,22 @@ Durable architecture reference:
 
 - `docs/42-Mission-Engine.md`
 
+## Current RC3 UX Simplification Pass
+
+Date: 23 July 2026
+
+Founder UAT showed that Storage Mission had become technically correct but cognitively heavy.
+
+This pass keeps the Mission Engine and existing Storage Mission actions intact while simplifying the interaction model:
+
+- One obvious primary button per action.
+- Preview, explanation, file lists, risk, and technical details move behind progressive disclosure.
+- Labels shift from technical utility language to plain guidance: old installers, temporary files, safety, what you'll notice, and you'll recover.
+- Buttons provide immediate feedback while work is running.
+- Companion remains unchanged.
+
+No new missions or care actions should be added in this pass.
+
 ## Mental Model
 
 Stop designing System Pulse like software. Start designing it like a trusted companion that quietly checks in.

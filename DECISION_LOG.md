@@ -1,5 +1,24 @@
 # Decision Log
 
+## 2026-07-23 - RC3 Storage Mission UX simplification
+
+Founder UAT showed that the Storage Mission exposed the process too directly. Preview, Run, Later, and Explain as equal buttons made the user manage a technical decision tree instead of answering the practical question: "Can I safely click this?"
+
+Decisions:
+
+- Keep the existing Mission Engine and Storage Mission care actions; do not add missions or new functionality.
+- Present each Storage Mission action with one obvious primary button.
+- Move preview, explanation, file lists, risk, and technical details behind progressive disclosure.
+- Use plain labels such as "Remove old installers," "Clean temporary files," "Safety," "You'll recover," and "What you'll notice."
+- Treat the primary click as the user's approval for that action and show immediate cleaning feedback.
+- Keep Companion unchanged.
+
+Implications:
+
+- Future missions should avoid exposing lifecycle mechanics as equal choices.
+- Technical details remain available for trust, but should not be the first thing a non-technical user has to process.
+- The user-facing model is "Pulse has done the thinking; choose the one useful care action," not "navigate maintenance controls."
+
 ## 2026-07-23 - PulseCore Mission Engine
 
 System Pulse now treats Storage Recovery as the first registered Pulse Mission rather than a one-off feature.

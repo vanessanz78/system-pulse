@@ -100,10 +100,10 @@ pub fn plan() -> Result<RecoveryPlan, String> {
             title: "Storage looks okay right now.".to_string(),
             summary: "I checked the safest places first and did not find enough recoverable space to need a mission.".to_string(),
             explanation:
-                "I checked Trash, downloaded installers, and conservative app caches. Nothing large enough needs a care moment."
+                "I checked Trash, old installers, and temporary application files. Nothing large enough needs a care moment."
                     .to_string(),
             confidence: "High".to_string(),
-            confidence_reason: "These checks only inspect well-known storage locations and do not touch personal documents.".to_string(),
+            confidence_reason: "These checks avoid personal documents and only look in places that are normally safe to tidy.".to_string(),
             status: MissionLifecycle::Ready.as_str().to_string(),
             priority: 10,
             estimated_benefit: format_bytes(estimated_benefit_bytes),
@@ -129,7 +129,7 @@ pub fn plan() -> Result<RecoveryPlan, String> {
         ),
         summary: storage_plan_summary(&actions, estimated_benefit_bytes),
         explanation:
-            "This mission focuses on storage that is already discarded, old installer files, or temporary application cache. Personal documents are not included."
+            "This mission focuses on storage that is already discarded, old installer files, or temporary files your applications can recreate. Personal documents are not included."
                 .to_string(),
         confidence,
         confidence_reason,
@@ -143,8 +143,8 @@ pub fn plan() -> Result<RecoveryPlan, String> {
         estimated_benefit_bytes,
         expected_interruption: "None".to_string(),
         estimated_duration: "About 40 seconds".to_string(),
-        diagnosis: "Recoverable storage exists in low-risk locations: Trash, old downloaded installers, or rebuildable app caches.".to_string(),
-        recovery_plan: "Preview the largest safe recovery action first, then run only the action you approve.".to_string(),
+        diagnosis: "Recoverable storage exists in low-risk locations: Trash, old installers, or temporary app files.".to_string(),
+        recovery_plan: "Choose the one useful cleaning action you want System Pulse to handle.".to_string(),
         actions,
     })
 }
@@ -227,7 +227,7 @@ impl StorageCareAction for DeleteDownloadedInstallersAction {
     }
 
     fn title(&self) -> &'static str {
-        "Delete downloaded installers"
+        "Remove old installers"
     }
 
     fn preview(&self) -> Result<CareActionPreview, String> {
@@ -246,11 +246,11 @@ impl StorageCareAction for DeleteDownloadedInstallersAction {
             action_id: StorageCareAction::action_id(self),
             title: StorageCareAction::title(self),
             description: "Remove old app installers from Downloads.",
-            reason: "Downloaded installers are usually only needed once. I only include DMG, PKG, and ZIP files older than the configured age threshold.",
+            reason: "Installers are usually only needed once. I only include older app installer files, and removing them does not remove the apps themselves.",
             risk: "Low. This removes installer files, not documents or app data.",
             interruption: "None",
             confidence: "High",
-            confidence_reason: "These are old installer/archive files in Downloads. Installed applications and user data are not touched.",
+            confidence_reason: "Installed applications, documents, and app data are not touched.",
             items,
         })
     }
@@ -267,7 +267,7 @@ impl StorageCareAction for ClearObsoleteCachesAction {
     }
 
     fn title(&self) -> &'static str {
-        "Clear obsolete app caches"
+        "Clean temporary files"
     }
 
     fn preview(&self) -> Result<CareActionPreview, String> {
@@ -285,12 +285,12 @@ impl StorageCareAction for ClearObsoleteCachesAction {
         Ok(ActionEstimate {
             action_id: StorageCareAction::action_id(self),
             title: StorageCareAction::title(self),
-            description: "Remove older cache files from conservative app cache folders.",
-            reason: "Application caches can be rebuilt by the app. I skip browser profiles, preferences, documents, mail, photos, messages, and cloud data.",
-            risk: "Low to medium. Some apps may rebuild cache files the next time they open.",
-            interruption: "The application may load slightly slower next launch.",
+            description: "Remove temporary files your applications can recreate automatically.",
+            reason: "I found temporary files that your applications can recreate automatically. I skip browser profiles, preferences, documents, mail, photos, messages, and cloud data.",
+            risk: "Low to medium. Nothing personal will be removed.",
+            interruption: "Applications may open slightly slower the first time after cleaning.",
             confidence: "Medium",
-            confidence_reason: "Caches are rebuildable, but some apps may briefly recreate them after cleanup.",
+            confidence_reason: "These files are rebuildable, but some apps may briefly recreate them after cleanup.",
             items,
         })
     }
@@ -359,7 +359,7 @@ impl_mission_care_action!(DeleteDownloadedInstallersAction, "High", "None");
 impl_mission_care_action!(
     ClearObsoleteCachesAction,
     "Medium",
-    "The application may load slightly slower next launch."
+    "Applications may open slightly slower the first time after cleaning."
 );
 
 fn action_summary(estimate: &ActionEstimate) -> CareActionSummary {
@@ -423,10 +423,10 @@ fn preview_found_label(estimate: &ActionEstimate) -> String {
     match estimate.action_id {
         "empty-trash" => "I found items already waiting in Trash.".to_string(),
         "delete-downloaded-installers" => {
-            "I found old downloaded installers in Downloads.".to_string()
+            "I found old installers in Downloads.".to_string()
         }
         "clear-obsolete-caches" => {
-            "I found temporary application cache files in conservative cache folders.".to_string()
+            "I found temporary files that your applications can recreate automatically.".to_string()
         }
         _ => "I found recoverable storage.".to_string(),
     }
@@ -633,9 +633,9 @@ fn installer_files(root: &Path, min_age_days: u64) -> Result<Vec<RecoveryItem>, 
 fn installer_reason(path: &Path) -> String {
     let appears_installed = application_appears_installed(path);
     if appears_installed {
-        "The application appears to already be installed. Keeping this installer is only useful if you want an offline reinstall copy.".to_string()
+        "The app appears to already be installed. Keeping this file is only useful if you want an offline reinstall copy.".to_string()
     } else {
-        "This is an old downloaded installer or archive. Removing it will not remove an installed application or your documents.".to_string()
+        "This is an old installer or archive. Removing it will not remove an installed app or your documents.".to_string()
     }
 }
 
@@ -726,10 +726,10 @@ fn collect_old_files(root: &Path, min_age_days: u64, items: &mut Vec<RecoveryIte
             items.push(recovery_item(
                 path,
                 size_bytes,
-                "Application cache",
-                "Temporary application cache. The application can recreate this automatically if needed.",
+                "Temporary file",
+                "Your application can recreate this automatically if it needs it again.",
                 "Medium",
-                "The application may load slightly slower next launch.",
+                "The app may open slightly slower the first time after cleaning.",
             ));
         }
     }
