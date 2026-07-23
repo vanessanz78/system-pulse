@@ -1317,13 +1317,13 @@ fn browser_health(snapshot: &SystemSnapshot, score: u8) -> DomainHealth {
             browser.process_count,
             browser.renderer_count
         );
-        let metric_label = format!(
-            "{} of {} used - {} CPU - {} renderers",
-            format_bytes(browser.memory_bytes),
-            format_bytes(snapshot.memory.total_bytes),
-            format_cpu(browser.cpu_percent),
-            browser.renderer_count
-        );
+        let metric_label = if score >= 90 {
+            "Browser activity looks normal.".to_string()
+        } else if score >= 58 {
+            format!("{} is your busiest browser right now.", browser.name)
+        } else {
+            format!("{} is using more memory than usual.", browser.name)
+        };
         let metric_percent = format!(
             "{}%",
             format_percent(browser.memory_bytes, snapshot.memory.total_bytes)
@@ -1433,7 +1433,6 @@ fn application_impacts(snapshot: &SystemSnapshot) -> Vec<ApplicationImpact> {
             let is_browser = is_observed_browser(snapshot, &application.name);
             let is_chrome = application.name.to_lowercase().contains("chrome");
             let is_codex = application.name.to_lowercase().contains("codex");
-            let is_safari = application.name == "Safari";
             let is_finder = application.name == "Finder";
             let is_window_server = application.name == "WindowServer";
             let display_name = display_application_name(&application.name);
@@ -1484,25 +1483,16 @@ fn application_impacts(snapshot: &SystemSnapshot) -> Vec<ApplicationImpact> {
                     true,
                 )
             } else if index == 0 && is_browser {
-                let action_kind = if is_safari { "quitApp" } else { "restartApp" };
-                let action_label = if is_safari {
-                    "Quit Safari".to_string()
-                } else {
-                    "Restart now".to_string()
-                };
-                let care_label = if is_safari {
-                    "Quit Safari at your next break".to_string()
-                } else {
-                    format!("Restart {display_name} at your next break")
-                };
                 (
-                    care_label,
-                    browser_care_detail(display_name),
-                    "+35 minutes".to_string(),
-                    action_kind.to_string(),
-                    display_name.to_string(),
-                    action_label,
-                    true,
+                    "Browser Care available".to_string(),
+                    format!(
+                        "{display_name} is carrying browser work. Use Browser Care for any safe action so preview, explanation, run, and verification stay together."
+                    ),
+                    "+0 minutes".to_string(),
+                    "none".to_string(),
+                    String::new(),
+                    String::new(),
+                    false,
                     false,
                 )
             } else if index == 0 && is_finder && app_score < 58 {
@@ -1644,16 +1634,6 @@ fn safe_restart_target(name: &str) -> bool {
     matches!(
         name,
         "Google Chrome" | "Microsoft Edge" | "Firefox" | "Safari" | "Finder"
-    )
-}
-
-fn browser_care_detail(name: &str) -> String {
-    if name == "Safari" {
-        return "Safari is holding browser work in memory. Smallest action: quit Safari at a natural break. Expected interruption: about 10 seconds.".to_string();
-    }
-
-    format!(
-        "{name} is carrying tab and renderer work. Smallest action: restart only the browser at a natural break. Expected interruption: about 20 seconds."
     )
 }
 
