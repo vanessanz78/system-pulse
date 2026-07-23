@@ -77,6 +77,26 @@ This pass keeps the Mission Engine and existing Storage Mission actions intact w
 
 No new missions or care actions should be added in this pass.
 
+## Current RC4 Browser Care Pass
+
+Date: 23 July 2026
+
+Storage Care has proven the interaction model. RC4 extends that exact model to Browser Care as the second production Pulse Mission.
+
+Scope:
+
+- Register Browser Care through the existing Mission Engine.
+- Observe supported browsers locally: Google Chrome, Microsoft Edge, and Safari.
+- Use local process, renderer, memory, CPU, uptime, window, and tab-count signals only.
+- Do not read browsing history, URLs, page titles, or website content.
+- Recommend one real, safe action only when browser pressure is meaningful.
+- Keep technical details behind disclosure.
+- Keep Companion unchanged.
+- Keep Today layout unchanged.
+- Do not redesign the Mission Engine.
+
+If safe automation is unavailable for a browser action, hide that action rather than showing a fake button.
+
 ## Mental Model
 
 Stop designing System Pulse like software. Start designing it like a trusted companion that quietly checks in.

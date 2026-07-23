@@ -1,3 +1,4 @@
+mod browser_care;
 mod collectors;
 mod flow_truth;
 mod mission_engine;
@@ -103,6 +104,7 @@ fn route_ask_pulse(query: String) -> Result<AskPulseRoute, String> {
 fn mission_registry() -> MissionRegistry {
     let mut registry = MissionRegistry::new();
     registry.register(storage_recovery::StorageMissionProvider);
+    registry.register(browser_care::BrowserCareMissionProvider);
     registry
 }
 

@@ -380,6 +380,20 @@ pub fn route_ask_pulse(query: &str, snapshot: &MissionRegistrySnapshot) -> AskPu
         };
     }
 
+    if normalized.contains("browser")
+        || normalized.contains("chrome")
+        || normalized.contains("safari")
+        || normalized.contains("edge")
+        || normalized.contains("tab")
+    {
+        return AskPulseRoute {
+            route: "mission".to_string(),
+            category: "Browser".to_string(),
+            mission_id: Some("browser-care".to_string()),
+            reason: "That question is about browser performance, so Ask Pulse can route it to Browser Care without becoming a chatbot.".to_string(),
+        };
+    }
+
     if let Some(mission) = &snapshot.top_mission {
         return AskPulseRoute {
             route: "mission".to_string(),

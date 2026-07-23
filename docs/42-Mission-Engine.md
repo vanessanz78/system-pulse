@@ -7,7 +7,7 @@ Date: 23 July 2026
 
 The Mission Engine turns System Pulse care work into one reusable architecture.
 
-Storage Recovery is the reference implementation. Browser, Developer, Battery, Network, Security, Applications, Updates, and Health missions should plug into the same engine later instead of creating separate UI and execution paths.
+Storage Recovery is the reference implementation. Browser Care is the second registered mission and proves that the same engine can support more than storage. Developer, Battery, Network, Security, Applications, Updates, and Health missions should plug into the same engine later instead of creating separate UI and execution paths.
 
 System Pulse should follow this shape:
 
@@ -118,6 +118,7 @@ Missions register with the engine:
 
 ```ts
 MissionRegistry.register(StorageMission)
+MissionRegistry.register(BrowserCareMission)
 ```
 
 The registry loads missions dynamically and publishes:
@@ -138,7 +139,7 @@ The Mission Planner ranks missions using:
 - safety
 - current system context
 
-The first implementation ranks Storage Recovery by estimated recoverable space, confidence, interruption, and mission priority. Future planners can add richer context while keeping the same `PulseMission` output.
+The first implementation ranked Storage Recovery by estimated recoverable space, confidence, interruption, and mission priority. Browser Care uses the same ranking contract with estimated recoverable RAM as the benefit. Future planners can add richer context while keeping the same `PulseMission` output.
 
 ## Ask Pulse Routing
 
@@ -147,6 +148,7 @@ Ask Pulse should not begin as a chatbot.
 The first abstraction is routing:
 
 - storage questions route to Storage Mission
+- browser questions route to Browser Care
 - otherwise Ask Pulse starts with Today's top mission
 - if no mission is ready, Ask Pulse answers from the local Today health picture
 
@@ -186,3 +188,11 @@ Future missions must:
 Storage Mission is no longer special.
 
 It is the first registered mission and the reference implementation for the Mission Engine.
+
+## RC4 Decision
+
+Browser Care is the second registered mission.
+
+It uses local browser process, renderer, memory, CPU, uptime, window, and tab-count signals for Chrome, Edge, and Safari. It does not read browsing history, URLs, page titles, or website content.
+
+RC4 offers only one genuine automated action: restart the busiest supported browser when browser pressure is meaningful. Safer actions such as tab suspension or duplicate-tab cleanup must remain hidden until System Pulse has a real browser-level automation path.

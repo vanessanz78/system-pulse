@@ -422,6 +422,7 @@ function missionActionIdLabel(actionId: string): string {
   if (localId === "empty-trash") return "Trash";
   if (localId === "delete-downloaded-installers") return "Old installers";
   if (localId === "clear-obsolete-caches") return "Temporary files";
+  if (localId === "restart-browser") return "Browser";
   return "Mission";
 }
 
@@ -429,15 +430,19 @@ function missionActionTitle(action: MissionAction): string {
   const localId = missionActionLocalId(action.id);
   if (localId === "delete-downloaded-installers") return "Remove old installers";
   if (localId === "clear-obsolete-caches") return "Clean temporary files";
+  if (localId === "restart-browser") return "Reduce browser memory use";
   return action.title;
 }
 
 function missionActionButtonLabel(action: MissionAction): string {
   const localId = missionActionLocalId(action.id);
-  if (missionActionStatus(action) === "Running") return "Cleaning...";
+  if (missionActionStatus(action) === "Running") {
+    return localId === "restart-browser" ? "Reducing..." : "Cleaning...";
+  }
   if (missionActionStatus(action) === "Completed") return "Done";
   if (localId === "empty-trash") return "Empty now";
   if (localId === "delete-downloaded-installers") return "Remove now";
+  if (localId === "restart-browser") return "Reduce memory";
   return "Clean now";
 }
 
@@ -446,6 +451,7 @@ function missionActionWhatWillHappen(action: MissionAction): string {
   if (localId === "empty-trash") return "Items already in Trash will be permanently removed.";
   if (localId === "delete-downloaded-installers") return "Old installer files in Downloads will be removed. Installed apps and documents stay where they are.";
   if (localId === "clear-obsolete-caches") return "Temporary files from applications that no longer need them will be removed.";
+  if (localId === "restart-browser") return "The browser will close and reopen. Most tabs usually restore automatically, but inactive tabs may reload.";
   return action.description;
 }
 
@@ -454,6 +460,7 @@ function missionActionSummary(action: MissionAction): string {
   if (localId === "empty-trash") return "Items already placed in Trash.";
   if (localId === "delete-downloaded-installers") return "Old app installers that are usually only needed once.";
   if (localId === "clear-obsolete-caches") return "Temporary files your applications can recreate automatically.";
+  if (localId === "restart-browser") return "Browser processes that can usually be refreshed safely.";
   return action.description;
 }
 
@@ -478,12 +485,26 @@ function safetySentence(confidence: string): string {
   return "Review the details before cleaning.";
 }
 
+function missionSafetySentence(action: MissionAction): string {
+  if (missionActionLocalId(action.id) === "restart-browser") {
+    return "Your browser will reopen. Tabs usually restore, but unsaved form text may not be preserved.";
+  }
+  return safetySentence(action.confidence);
+}
+
 function actionNotice(action: MissionAction): string {
   const localId = missionActionLocalId(action.id);
   if (localId === "clear-obsolete-caches") {
     return "Applications may open slightly slower the first time after cleaning.";
   }
+  if (localId === "restart-browser") {
+    return "The browser will close and reopen. Tabs may reload when you return to them.";
+  }
   return action.interruption === "None" ? "Nothing should interrupt your work." : action.interruption;
+}
+
+function isBrowserMissionAction(actionId: string): boolean {
+  return actionId.startsWith("browser-care:");
 }
 
 function isMissionActionExpanded(actionId: string): boolean {
@@ -498,6 +519,8 @@ function isMissionActionExpanded(actionId: string): boolean {
 }
 
 function missionPreviewFilesHtml(preview: MissionActionPreview): string {
+  const browserMission = isBrowserMissionAction(preview.actionId);
+  const affectedLabel = browserMission ? "What System Pulse checked" : "Files affected";
   const friendlyFiles = preview.files.length
     ? preview.files
         .map(
@@ -539,7 +562,7 @@ function missionPreviewFilesHtml(preview: MissionActionPreview): string {
 
   return `
     <details class="storage-disclosure">
-      <summary>Files affected</summary>
+      <summary>${affectedLabel}</summary>
       <ul class="storage-file-list friendly-file-list">${friendlyFiles}</ul>
       ${omitted}
     </details>
@@ -568,17 +591,18 @@ function missionActionDetailHtml(detail: MissionActionDetail | null, action?: Mi
   if (detail.kind === "preview") {
     const preview = detail.preview;
     const notice = action ? actionNotice(action) : preview.interruption;
+    const browserMission = isBrowserMissionAction(preview.actionId);
 
     return `
       <section class="storage-action-detail" aria-label="${escapeHtml(preview.title)} preview">
-        <p class="care-task-label">What I'm going to clean</p>
+        <p class="care-task-label">${browserMission ? "What I'm going to do" : "What I'm going to clean"}</p>
         <h3>${escapeHtml(action ? missionActionSummary(action) : preview.whatIFound)}</h3>
-        <p>Nothing personal will be removed.</p>
+        <p>${browserMission ? "Browsing history and website content were not read." : "Nothing personal will be removed."}</p>
         <dl class="storage-explain-list friendly-explain-list">
           <div><dt>Why this is recommended</dt><dd>${escapeHtml(preview.whySelected)}</dd></div>
           <div><dt>What will happen</dt><dd>${escapeHtml(action ? missionActionWhatWillHappen(action) : preview.whatIFound)}</dd></div>
           <div><dt>You'll recover</dt><dd>${escapeHtml(preview.estimatedRecovery)}</dd></div>
-          <div><dt>Safety</dt><dd><span class="safety-pill ${escapeHtml(safetyClass(preview.confidence))}">${escapeHtml(safetyLabel(preview.confidence))}</span> ${escapeHtml(safetySentence(preview.confidence))}</dd></div>
+          <div><dt>Safety</dt><dd><span class="safety-pill ${escapeHtml(safetyClass(preview.confidence))}">${escapeHtml(safetyLabel(preview.confidence))}</span> ${escapeHtml(action ? missionSafetySentence(action) : safetySentence(preview.confidence))}</dd></div>
           <div><dt>What you'll notice</dt><dd>${escapeHtml(notice)}</dd></div>
         </dl>
         ${missionPreviewFilesHtml(preview)}
@@ -604,6 +628,7 @@ function missionActionDetailHtml(detail: MissionActionDetail | null, action?: Mi
   }
 
   const result = detail.result;
+  const browserResult = isBrowserMissionAction(result.actionId);
   const errors = result.errors.length
     ? `
       <ul class="storage-result-errors">
@@ -618,17 +643,17 @@ function missionActionDetailHtml(detail: MissionActionDetail | null, action?: Mi
       <h3>${result.success ? `&#10003; ${escapeHtml(result.title)} complete.` : "Partly complete"}</h3>
       <div class="storage-result-grid">
         ${missionMetric("Recovered", result.recovered)}
-        ${missionMetric("Available now", result.currentFreeSpace)}
-        ${missionMetric("Storage health", result.storageHealth)}
+        ${missionMetric(browserResult ? "Browser" : "Available now", result.currentFreeSpace)}
+        ${missionMetric(browserResult ? "Result" : "Storage health", result.storageHealth)}
       </div>
-      <p>${result.verified ? `Your Mac now has ${escapeHtml(result.currentFreeSpace)} available.` : "The action ran, but macOS has not reported the extra free space yet."}</p>
+      <p>${browserResult ? escapeHtml(result.verification) : result.verified ? `Your Mac now has ${escapeHtml(result.currentFreeSpace)} available.` : "The action ran, but macOS has not reported the extra free space yet."}</p>
       <details class="storage-disclosure">
         <summary>Show technical details</summary>
         <div class="storage-result-grid technical-result-grid">
-          ${missionMetric("Storage before", result.storageBefore)}
-          ${missionMetric("Storage after", result.storageAfter)}
+          ${missionMetric(browserResult ? "Memory before" : "Storage before", result.storageBefore)}
+          ${missionMetric(browserResult ? "Memory after" : "Storage after", result.storageAfter)}
           ${missionMetric("Duration", result.duration)}
-          ${missionMetric("Items cleaned", result.actionsCompleted.toString())}
+          ${missionMetric(browserResult ? "Actions completed" : "Items cleaned", result.actionsCompleted.toString())}
           ${missionMetric("Skipped items", result.skippedItems.toString())}
           ${missionMetric("Verification", result.verified ? "Passed" : "Pending")}
         </div>
@@ -671,10 +696,10 @@ function missionPlanHtml(plan: PulseMission): string {
             <p class="safety-line ${escapeHtml(safetyClass(action.confidence))}">
               <span aria-hidden="true"></span>
               <strong>${escapeHtml(safetyLabel(action.confidence))}</strong>
-              <small>${escapeHtml(safetySentence(action.confidence))}</small>
+              <small>${escapeHtml(missionSafetySentence(action))}</small>
             </p>
             <p class="care-task-detail">${escapeHtml(missionActionSummary(action))}</p>
-            ${running ? `<div class="storage-progress" aria-label="Cleaning"><span></span></div>` : ""}
+            ${running ? `<div class="storage-progress" aria-label="${isBrowserMissionAction(action.id) ? "Reducing browser memory" : "Cleaning"}"><span></span></div>` : ""}
           </div>
           <div class="storage-action-buttons">
             <button
@@ -923,41 +948,6 @@ function applicationCareTask(application: ApplicationImpact): string {
   `;
 }
 
-function browserNameFromDomain(domain: DomainHealth): string {
-  const valueName = domain.value.split(":")[0]?.trim();
-  if (valueName && valueName !== domain.value) return valueName;
-  const headlineName = domain.headline.match(/^(.+?) (looks|is|may|needs)/)?.[1];
-  return headlineName || "Browser";
-}
-
-function browserCareTask(domain: DomainHealth): string {
-  const browserName = browserNameFromDomain(domain);
-  const actionKind = browserName === "Safari" ? "quitApp" : "restartApp";
-  const actionLabel = browserName === "Safari" ? "Quit" : "Restart";
-  return `
-    <div class="care-task">
-      <span class="care-task-icon status-icon status-icon-browser" aria-hidden="true"></span>
-      <div class="care-task-copy">
-        <p class="care-task-label">Browser</p>
-        <strong>${escapeHtml(browserName)}</strong>
-        <small>${escapeHtml(domain.metricLabel || domain.value)}</small>
-        <p class="care-task-detail">${escapeHtml(domain.detail)}</p>
-        <p class="care-task-benefit">What you'll notice: about 20 seconds. Expected benefit: +35 minutes.</p>
-      </div>
-      <div class="care-task-actions">
-        <button
-          class="recommended-primary-button"
-          type="button"
-          data-browser-action="${escapeHtml(actionKind)}"
-          data-browser-target="${escapeHtml(browserName)}"
-        >
-          ${escapeHtml(actionLabel)}
-        </button>
-      </div>
-    </div>
-  `;
-}
-
 function domainCareTask(
   label: string,
   icon: string,
@@ -988,9 +978,6 @@ function careTasks(pulse: TodayPulse): string[] {
   const tasks: string[] = [];
   const application = firstRecommendedApplication(pulse);
   if (application) tasks.push(applicationCareTask(application));
-  if (pulse.browserHealth && domainNeedsCare(pulse.browserHealth)) {
-    tasks.push(browserCareTask(pulse.browserHealth));
-  }
   return tasks.slice(0, 4);
 }
 
@@ -1322,16 +1309,6 @@ function wireCareActions(pulse: TodayPulse): void {
     });
   });
 
-  document.querySelectorAll<HTMLButtonElement>("[data-browser-action]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const actionKind = button.dataset.browserAction;
-      const target = button.dataset.browserTarget;
-      if (actionKind && target) {
-        void performBrowserAction(actionKind, target);
-      }
-    });
-  });
-
   document.querySelectorAll<HTMLButtonElement>("[data-detail-action]").forEach((button) => {
     button.addEventListener("click", () => {
       selectedApplicationId = button.dataset.detailAction || null;
@@ -1502,7 +1479,9 @@ async function runMissionAction(actionId: string): Promise<void> {
     timestamp: new Date().toISOString(),
   });
   missionActionStatuses[actionId] = "Running";
-  careMessage = `${title} is cleaning now.`;
+  careMessage = isBrowserMissionAction(actionId)
+    ? `${title} is reducing browser memory now.`
+    : `${title} is cleaning now.`;
   missionActionDetail = null;
   if (currentPulse) renderToday(currentPulse);
 
@@ -1546,28 +1525,6 @@ async function performApplicationAction(application: ApplicationImpact): Promise
   try {
     const message = await invoke<string>("perform_care_action", {
       actionKind: application.actionKind,
-      target,
-    });
-    careMessage = message;
-    await loadToday({ keepExisting: true });
-  } catch (error) {
-    careMessage = error instanceof Error ? error.message : String(error);
-    if (currentPulse) renderToday(currentPulse);
-  }
-}
-
-async function performBrowserAction(actionKind: string, target: string): Promise<void> {
-  const label = actionKind === "quitApp" ? "quit" : "restart";
-  const confirmed = window.confirm(`System Pulse will ask macOS to ${label} ${target}. Continue?`);
-  if (!confirmed) return;
-
-  selectedApplicationId = null;
-  careMessage = `Working on ${target}...`;
-  if (currentPulse) renderToday(currentPulse, true);
-
-  try {
-    const message = await invoke<string>("perform_care_action", {
-      actionKind,
       target,
     });
     careMessage = message;

@@ -1,5 +1,25 @@
 # Decision Log
 
+## 2026-07-23 - Browser Care as second Pulse Mission
+
+Storage Care proved the interaction model, so Browser Care becomes the second production Pulse Mission rather than another one-off care card.
+
+Decisions:
+
+- Register Browser Care through the existing Mission Engine.
+- Keep Companion and Today layout unchanged.
+- Use the RC3 Storage Care interaction model: one primary action, progressive disclosure, plain English, immediate feedback, and technical details hidden by default.
+- Observe supported browsers locally: Google Chrome, Microsoft Edge, and Safari.
+- Do not read browsing history, URLs, page titles, or website content.
+- Offer only genuine automation. RC4 supports restarting the busiest supported browser when memory, renderer count, processor use, or long uptime creates meaningful pressure.
+- Do not display fake suspend-tab, duplicate-tab, or grouping actions until a safe browser-level automation path exists.
+
+Implications:
+
+- The Mission Engine now has two real missions proving the reusable pattern.
+- Future missions should inherit the same interaction model instead of exposing mission lifecycle controls as UI choices.
+- Browser Care should answer "is my browser affecting my computer, and what is the safest useful action?" rather than behaving like a browser utility.
+
 ## 2026-07-23 - RC3 Storage Mission UX simplification
 
 Founder UAT showed that the Storage Mission exposed the process too directly. Preview, Run, Later, and Explain as equal buttons made the user manage a technical decision tree instead of answering the practical question: "Can I safely click this?"
