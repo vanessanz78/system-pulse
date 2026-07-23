@@ -163,9 +163,9 @@ pub fn run(action_id: &str) -> Result<CareActionRunResult, String> {
 
 fn collect_estimates() -> Result<Vec<ActionEstimate>, String> {
     Ok(vec![
-        EmptyTrashAction.estimate()?,
-        DeleteDownloadedInstallersAction.estimate()?,
-        ClearObsoleteCachesAction.estimate()?,
+        StorageCareAction::estimate(&EmptyTrashAction)?,
+        StorageCareAction::estimate(&DeleteDownloadedInstallersAction)?,
+        StorageCareAction::estimate(&ClearObsoleteCachesAction)?,
     ])
 }
 
